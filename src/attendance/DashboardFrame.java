@@ -12,19 +12,38 @@ public class DashboardFrame extends JFrame {
 
     public DashboardFrame() {
         setTitle("Barangay Attendance - Employee Dashboard");
-        setSize(400, 200);
+        setExtendedState(JFrame.MAXIMIZED_BOTH);
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
 
-        JPanel panel = new JPanel(new GridLayout(2, 1, 20, 20));
-        panel.setBorder(BorderFactory.createEmptyBorder(30, 30, 30, 30));
+        // ===== HEADER =====
+        JLabel headerLabel = new JLabel("Barangay Attendance System", SwingConstants.CENTER);
+        headerLabel.setFont(new Font("Segoe UI", Font.BOLD, 36));
+        headerLabel.setBorder(BorderFactory.createEmptyBorder(40, 10, 40, 10));
 
-        btnScanID = new JButton("Scan ID");
-        btnManual = new JButton("Manual Entry");
+        // ===== BUTTON PANEL =====
+        JPanel panel = new JPanel(new GridLayout(2, 1, 40, 40));
+        panel.setBorder(BorderFactory.createEmptyBorder(50, 400, 100, 400));
+
+        btnScanID = new JButton("📷  Scan ID");
+        btnManual = new JButton("✍️  Manual Entry");
+
+        Dimension buttonSize = new Dimension(400, 90);
+        Font buttonFont = new Font("Segoe UI", Font.BOLD, 28);
+
+        btnScanID.setFont(buttonFont);
+        btnManual.setFont(buttonFont);
+        btnScanID.setPreferredSize(buttonSize);
+        btnManual.setPreferredSize(buttonSize);
+        btnScanID.setFocusPainted(false);
+        btnManual.setFocusPainted(false);
 
         panel.add(btnScanID);
         panel.add(btnManual);
-        add(panel);
+
+        setLayout(new BorderLayout());
+        add(headerLabel, BorderLayout.NORTH);
+        add(panel, BorderLayout.CENTER);
 
         btnScanID.addActionListener(e -> scanEmployeeID());
         btnManual.addActionListener(e -> manualEntry());
@@ -35,12 +54,26 @@ public class DashboardFrame extends JFrame {
         if (empId == null || empId.trim().isEmpty()) return;
 
         String name = getEmployeeName(empId);
-        if (name == null) name = "Unknown";
+        if (name == null) {
+            JOptionPane.showMessageDialog(this, "❌ Employee not registered!", "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
 
-        String action = determineAction(empId, name);
-        saveLog(name, empId, action);
+        // ✅ Check for today's log
+        String todayAction = getTodayAction(empId, name);
 
-        JOptionPane.showMessageDialog(this, "Employee " + name + " (" + empId + ") " + action + " recorded!");
+        if (todayAction.equals("BOTH_DONE")) {
+            JOptionPane.showMessageDialog(this, "❌ Employee already has Clock IN and Clock OUT today!", "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        if (todayAction.equals("NO_CLOCKIN") || todayAction.equals("CAN_CLOCKIN")) {
+            saveLog(name, empId, "Clock IN");
+            JOptionPane.showMessageDialog(this, "Employee " + name + " (" + empId + ") Clock IN recorded!");
+        } else if (todayAction.equals("CAN_CLOCKOUT")) {
+            saveLog(name, empId, "Clock OUT");
+            JOptionPane.showMessageDialog(this, "Employee " + name + " (" + empId + ") Clock OUT recorded!");
+        }
     }
 
     private void manualEntry() {
@@ -50,7 +83,26 @@ public class DashboardFrame extends JFrame {
         String name = JOptionPane.showInputDialog(this, "Enter Employee Name:");
         if (name == null || name.trim().isEmpty()) return;
 
-        String[] options = {"Time IN", "Time OUT"};
+        if (!isEmployeeRegistered(empId, name)) {
+            JOptionPane.showMessageDialog(this,
+                    "❌ Employee not registered!\nPlease register first before logging attendance.",
+                    "Error",
+                    JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        String todayAction = getTodayAction(empId, name);
+        String[] options = null;
+
+        switch (todayAction) {
+            case "NO_CLOCKIN", "CAN_CLOCKIN" -> options = new String[]{"Clock IN"};
+            case "CAN_CLOCKOUT" -> options = new String[]{"Clock OUT"};
+            case "BOTH_DONE" -> {
+                JOptionPane.showMessageDialog(this, "❌ Employee already has Clock IN and Clock OUT today!", "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+        }
+
         int choice = JOptionPane.showOptionDialog(
                 this,
                 "Choose action for " + name,
@@ -62,27 +114,49 @@ public class DashboardFrame extends JFrame {
                 options[0]
         );
 
-        if (choice == 0) saveLog(name, empId, "TIME IN");
-        else if (choice == 1) saveLog(name, empId, "TIME OUT");
-
-        JOptionPane.showMessageDialog(this, name + " " + options[choice] + " recorded!");
+        if (choice >= 0) {
+            saveLog(name, empId, options[choice]);
+            JOptionPane.showMessageDialog(this, name + " " + options[choice] + " recorded!");
+        }
     }
 
-    private String determineAction(String empId, String name) {
+    private boolean isEmployeeRegistered(String empId, String name) {
+        try (BufferedReader br = new BufferedReader(new FileReader("employees.txt"))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                String[] parts = line.split(",");
+                if (parts.length >= 2) {
+                    if (parts[0].trim().equals(empId.trim()) && parts[1].trim().equalsIgnoreCase(name.trim())) {
+                        return true;
+                    }
+                }
+            }
+        } catch (IOException e) {
+            JOptionPane.showMessageDialog(this, "Error reading employees file: " + e.getMessage());
+        }
+        return false;
+    }
+
+    // ✅ Returns status of employee today
+    private String getTodayAction(String empId, String name) {
         String today = LocalDate.now().toString();
-        String lastAction = "";
+        boolean hasClockIn = false;
+        boolean hasClockOut = false;
 
         try (BufferedReader br = new BufferedReader(new FileReader("attendance_logs.txt"))) {
             String line;
             while ((line = br.readLine()) != null) {
                 String[] parts = line.split(",");
                 if (parts.length >= 6 && parts[0].equals(name) && parts[1].equals(empId) && parts[4].equals(today)) {
-                    lastAction = parts[2].isEmpty() ? "TIME OUT" : "TIME IN";
+                    hasClockIn = !parts[2].isEmpty();
+                    hasClockOut = !parts[3].isEmpty();
                 }
             }
         } catch (IOException ignored) {}
 
-        return lastAction.equals("TIME IN") ? "TIME OUT" : "TIME IN";
+        if (!hasClockIn) return "NO_CLOCKIN";
+        if (hasClockIn && !hasClockOut) return "CAN_CLOCKOUT";
+        return "BOTH_DONE";
     }
 
     private void saveLog(String name, String empId, String action) {
@@ -106,8 +180,8 @@ public class DashboardFrame extends JFrame {
                         foundToday = true;
                         timeIn = parts[2];
                         timeOut = parts[3];
-                        if (action.equals("TIME IN")) timeIn = time;
-                        else if (action.equals("TIME OUT")) timeOut = time;
+                        if (action.equals("Clock IN")) timeIn = time;
+                        else if (action.equals("Clock OUT")) timeOut = time;
                         line = name + "," + empId + "," + timeIn + "," + timeOut + "," + date + "," + time;
                     }
                     allLogs.append(line).append("\n");
@@ -121,8 +195,8 @@ public class DashboardFrame extends JFrame {
 
         if (!foundToday) {
             allLogs.append(name).append(",").append(empId).append(",");
-            allLogs.append(action.equals("TIME IN") ? time : "").append(",");
-            allLogs.append(action.equals("TIME OUT") ? time : "").append(",");
+            allLogs.append(action.equals("Clock IN") ? time : "").append(",");
+            allLogs.append(action.equals("Clock OUT") ? time : "").append(",");
             allLogs.append(date).append(",").append(time).append("\n");
         }
 
