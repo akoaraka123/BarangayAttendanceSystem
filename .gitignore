@@ -1,0 +1,13 @@
+cat > .gitignore <<'EOF'
+/build/
+/dist/
+/nbproject/private/
+*.class
+*.log
+.DS_Store
+Thumbs.db
+/.idea/
+/.vscode/
+*~
+EOF
+
