@@ -135,7 +135,13 @@ public class DatabaseOperations {
     
     // ===== EMPLOYEE OPERATIONS =====
     public static boolean registerEmployee(String empId, String fullName, String contact, String address, String position) {
-        String sql = "INSERT INTO employees (employee_id, full_name, contact_number, address, position) VALUES (?, ?, ?, ?, ?)";
+        // Auto-generate RFID Card ID
+        String rfidCardId = generateUniqueRFIDCardId();
+        return registerEmployee(empId, fullName, contact, address, position, rfidCardId);
+    }
+    
+    public static boolean registerEmployee(String empId, String fullName, String contact, String address, String position, String rfidCardId) {
+        String sql = "INSERT INTO employees (employee_id, full_name, contact_number, address, position, rfid_card_id) VALUES (?, ?, ?, ?, ?, ?)";
         try (Connection conn = DBConnection.getConnection();
              PreparedStatement pst = conn.prepareStatement(sql)) {
             
@@ -144,6 +150,7 @@ public class DatabaseOperations {
             pst.setString(3, contact);
             pst.setString(4, address);
             pst.setString(5, position);
+            pst.setString(6, rfidCardId != null && !rfidCardId.trim().isEmpty() ? rfidCardId.trim().toUpperCase() : null);
             
             int result = pst.executeUpdate();
             return result > 0;
@@ -151,6 +158,62 @@ public class DatabaseOperations {
             System.err.println("Error registering employee: " + e.getMessage());
             return false;
         }
+    }
+    
+    /**
+     * Generate unique RFID Card ID na hindi pa naka-register
+     */
+    private static String generateUniqueRFIDCardId() {
+        String rfidCardId;
+        int attempts = 0;
+        int maxAttempts = 10;
+        
+        do {
+            // Generate RFID Card ID
+            rfidCardId = RFIDCardGenerator.generateShortRFIDCardId();
+            attempts++;
+            
+            // Check if already exists
+            if (!isRFIDCardRegistered(rfidCardId)) {
+                return rfidCardId;
+            }
+            
+            // If max attempts reached, use timestamp-based ID
+            if (attempts >= maxAttempts) {
+                rfidCardId = RFIDCardGenerator.generateRFIDCardId();
+                break;
+            }
+        } while (attempts < maxAttempts);
+        
+        return rfidCardId;
+    }
+    
+    /**
+     * Generate unique RFID Card ID for employee (public method)
+     */
+    public static String generateUniqueRFIDCardIdForEmployee(String empId) {
+        String rfidCardId;
+        int attempts = 0;
+        int maxAttempts = 10;
+        
+        do {
+            // Generate RFID Card ID based on employee ID
+            rfidCardId = RFIDCardGenerator.generateRFIDCardId(empId);
+            attempts++;
+            
+            // Check if already exists
+            if (!isRFIDCardRegistered(rfidCardId)) {
+                return rfidCardId.toUpperCase();
+            }
+            
+            // If max attempts reached, use timestamp-based ID
+            if (attempts >= maxAttempts) {
+                rfidCardId = RFIDCardGenerator.generateRFIDCardId();
+                break;
+            }
+        } while (attempts < maxAttempts);
+        
+        return rfidCardId.toUpperCase();
     }
     
     public static boolean isEmployeeRegistered(String empId, String fullName) {
@@ -184,6 +247,80 @@ public class DatabaseOperations {
         return null;
     }
     
+    /**
+     * Get employee ID by RFID card ID
+     */
+    public static String getEmployeeIdByRFID(String rfidCardId) {
+        String sql = "SELECT employee_id FROM employees WHERE rfid_card_id = ?";
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement pst = conn.prepareStatement(sql)) {
+            
+            pst.setString(1, rfidCardId.trim());
+            ResultSet rs = pst.executeQuery();
+            if (rs.next()) {
+                return rs.getString("employee_id");
+            }
+        } catch (SQLException e) {
+            System.err.println("Error getting employee ID by RFID: " + e.getMessage());
+        }
+        return null;
+    }
+    
+    /**
+     * Get employee name by RFID card ID
+     */
+    public static String getEmployeeNameByRFID(String rfidCardId) {
+        String sql = "SELECT full_name FROM employees WHERE rfid_card_id = ?";
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement pst = conn.prepareStatement(sql)) {
+            
+            pst.setString(1, rfidCardId.trim());
+            ResultSet rs = pst.executeQuery();
+            if (rs.next()) {
+                return rs.getString("full_name");
+            }
+        } catch (SQLException e) {
+            System.err.println("Error getting employee name by RFID: " + e.getMessage());
+        }
+        return null;
+    }
+    
+    /**
+     * Check if RFID card is already registered
+     */
+    public static boolean isRFIDCardRegistered(String rfidCardId) {
+        String sql = "SELECT id FROM employees WHERE rfid_card_id = ?";
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement pst = conn.prepareStatement(sql)) {
+            
+            pst.setString(1, rfidCardId.trim());
+            ResultSet rs = pst.executeQuery();
+            return rs.next();
+        } catch (SQLException e) {
+            System.err.println("Error checking RFID card: " + e.getMessage());
+            return false;
+        }
+    }
+    
+    /**
+     * Update RFID card ID for an employee
+     */
+    public static boolean updateEmployeeRFID(String empId, String rfidCardId) {
+        String sql = "UPDATE employees SET rfid_card_id = ? WHERE employee_id = ?";
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement pst = conn.prepareStatement(sql)) {
+            
+            pst.setString(1, rfidCardId != null && !rfidCardId.trim().isEmpty() ? rfidCardId.trim() : null);
+            pst.setString(2, empId);
+            
+            int result = pst.executeUpdate();
+            return result > 0;
+        } catch (SQLException e) {
+            System.err.println("Error updating employee RFID: " + e.getMessage());
+            return false;
+        }
+    }
+    
     public static List<Employee> getAllEmployees() {
         List<Employee> employees = new ArrayList<>();
         String sql = "SELECT * FROM employees ORDER BY full_name";
@@ -198,7 +335,8 @@ public class DatabaseOperations {
                     rs.getString("full_name"),
                     rs.getString("contact_number"),
                     rs.getString("address"),
-                    rs.getString("position")
+                    rs.getString("position"),
+                    rs.getString("rfid_card_id")
                 );
                 employees.add(emp);
             }
@@ -209,7 +347,11 @@ public class DatabaseOperations {
     }
     
     public static boolean updateEmployee(String empId, String fullName, String contact, String address, String position) {
-        String sql = "UPDATE employees SET full_name = ?, contact_number = ?, address = ?, position = ? WHERE employee_id = ?";
+        return updateEmployee(empId, fullName, contact, address, position, null);
+    }
+    
+    public static boolean updateEmployee(String empId, String fullName, String contact, String address, String position, String rfidCardId) {
+        String sql = "UPDATE employees SET full_name = ?, contact_number = ?, address = ?, position = ?, rfid_card_id = ? WHERE employee_id = ?";
         try (Connection conn = DBConnection.getConnection();
              PreparedStatement pst = conn.prepareStatement(sql)) {
             
@@ -217,7 +359,8 @@ public class DatabaseOperations {
             pst.setString(2, contact);
             pst.setString(3, address);
             pst.setString(4, position);
-            pst.setString(5, empId);
+            pst.setString(5, rfidCardId != null && !rfidCardId.trim().isEmpty() ? rfidCardId.trim() : null);
+            pst.setString(6, empId);
             
             int result = pst.executeUpdate();
             return result > 0;

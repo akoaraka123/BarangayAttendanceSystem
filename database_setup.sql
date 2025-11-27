@@ -27,6 +27,7 @@ CREATE TABLE employees (
     contact_number VARCHAR(20),
     address TEXT,
     position VARCHAR(50),
+    rfid_card_id VARCHAR(50) UNIQUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );

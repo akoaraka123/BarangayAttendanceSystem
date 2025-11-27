@@ -6,6 +6,7 @@ public class Employee {
     private String contactNumber;
     private String address;
     private String position;
+    private String rfidCardId;
     
     public Employee(String employeeId, String fullName, String contactNumber, String address, String position) {
         this.employeeId = employeeId;
@@ -13,6 +14,16 @@ public class Employee {
         this.contactNumber = contactNumber;
         this.address = address;
         this.position = position;
+        this.rfidCardId = null;
+    }
+    
+    public Employee(String employeeId, String fullName, String contactNumber, String address, String position, String rfidCardId) {
+        this.employeeId = employeeId;
+        this.fullName = fullName;
+        this.contactNumber = contactNumber;
+        this.address = address;
+        this.position = position;
+        this.rfidCardId = rfidCardId;
     }
     
     // Getters and Setters
@@ -31,8 +42,11 @@ public class Employee {
     public String getPosition() { return position; }
     public void setPosition(String position) { this.position = position; }
     
+    public String getRfidCardId() { return rfidCardId; }
+    public void setRfidCardId(String rfidCardId) { this.rfidCardId = rfidCardId; }
+    
     @Override
     public String toString() {
-        return employeeId + "," + fullName + "," + contactNumber + "," + address + "," + position;
+        return employeeId + "," + fullName + "," + contactNumber + "," + address + "," + position + "," + (rfidCardId != null ? rfidCardId : "");
     }
 }

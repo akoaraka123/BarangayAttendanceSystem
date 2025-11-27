@@ -156,9 +156,29 @@ public class AdminDashboardFrame extends JFrame {
             return;
         }
 
+        // Auto-generate RFID Card ID / Barcode
+        String rfidCardId = DatabaseOperations.generateUniqueRFIDCardIdForEmployee(empId);
+        
         // Register employee
-        if (DatabaseOperations.registerEmployee(empId, fullName, contact, address, position)) {
-            JOptionPane.showMessageDialog(this, "Employee registered successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+        if (DatabaseOperations.registerEmployee(empId, fullName, contact, address, position, rfidCardId)) {
+            // Show success message
+            int choice = JOptionPane.showConfirmDialog(this, 
+                "✅ Employee Registered Successfully!\n\n" +
+                "📋 Employee ID: " + empId + "\n" +
+                "👤 Name: " + fullName + "\n\n" +
+                "🔖 RFID Card / Barcode ID: " + rfidCardId + "\n\n" +
+                "⚠️ IMPORTANT: I-save ang RFID Card ID na ito!\n" +
+                "I-tap/scan ang RFID card na ito sa RFID reader para mag-automatic clock in/out.\n\n" +
+                "🖨️ Mag-print ng barcode?",
+                "Employee Registered", 
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.INFORMATION_MESSAGE);
+            
+            // If user clicked "Yes" (OK), automatic na mag-print
+            if (choice == JOptionPane.YES_OPTION) {
+                // Automatic print - show print dialog then print
+                BarcodePrinter.printBarcode(rfidCardId, fullName, empId);
+            }
         } else {
             JOptionPane.showMessageDialog(this, "Error registering employee!", "Error", JOptionPane.ERROR_MESSAGE);
         }
@@ -264,13 +284,14 @@ public class AdminDashboardFrame extends JFrame {
             return;
         }
 
-        String[] columnNames = {"#", "Employee ID", "Full Name", "Contact", "Address", "Position"};
+        String[] columnNames = {"#", "Employee ID", "Full Name", "Contact", "Address", "Position", "RFID Card ID"};
         DefaultTableModel model = new DefaultTableModel(columnNames, 0);
 
         for (int i = 0; i < employees.size(); i++) {
             Employee emp = employees.get(i);
             Object[] row = {i + 1, emp.getEmployeeId(), emp.getFullName(), 
-                          emp.getContactNumber(), emp.getAddress(), emp.getPosition()};
+                          emp.getContactNumber(), emp.getAddress(), emp.getPosition(),
+                          emp.getRfidCardId() != null ? emp.getRfidCardId() : "Not Set"};
             model.addRow(row);
         }
 
@@ -306,21 +327,229 @@ public class AdminDashboardFrame extends JFrame {
 
             Employee emp = employees.get(empIndex - 1);
             
-            String newEmpId = ThemeManager.showLargeInputDialog(this, "Edit Employee ID:", "Edit Employee ID");
-            if (newEmpId == null) return;
-            String newName = ThemeManager.showLargeInputDialog(this, "Edit Full Name:", "Edit Full Name");
-            if (newName == null) return;
-            String newContact = ThemeManager.showLargeInputDialog(this, "Edit Contact Number:", "Edit Contact Number");
-            if (newContact == null) return;
-            String newAddress = ThemeManager.showLargeInputDialog(this, "Edit Address:", "Edit Address");
-            if (newAddress == null) return;
-            String newPosition = ThemeManager.showLargeInputDialog(this, "Edit Position:", "Edit Position");
-            if (newPosition == null) return;
-
-            if (DatabaseOperations.updateEmployee(emp.getEmployeeId(), newName, newContact, newAddress, newPosition)) {
-                JOptionPane.showMessageDialog(this, "Employee updated successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
-            } else {
-                JOptionPane.showMessageDialog(this, "Error updating employee!", "Error", JOptionPane.ERROR_MESSAGE);
+            // Show menu para pumili ng field na i-edit
+            String[] editOptions = {
+                "📋 Employee ID",
+                "👤 Full Name", 
+                "📞 Contact Number",
+                "🏠 Address",
+                "💼 Position",
+                "🔖 RFID Card ID",
+                "✅ Edit All Fields"
+            };
+            
+            int fieldChoice = JOptionPane.showOptionDialog(this,
+                "Select field to edit for:\n\n" +
+                "Employee: " + emp.getFullName() + "\n" +
+                "Employee ID: " + emp.getEmployeeId(),
+                "Edit Employee - Select Field",
+                JOptionPane.DEFAULT_OPTION,
+                JOptionPane.QUESTION_MESSAGE,
+                null,
+                editOptions,
+                editOptions[0]);
+            
+            if (fieldChoice < 0) return; // User cancelled
+            
+            // Get current values
+            String newEmpId = emp.getEmployeeId();
+            String newName = emp.getFullName();
+            String newContact = emp.getContactNumber();
+            String newAddress = emp.getAddress();
+            String newPosition = emp.getPosition();
+            String newRFID = emp.getRfidCardId();
+            
+            boolean updated = false;
+            String updatedField = "";
+            
+            // Edit specific field based on selection
+            switch (fieldChoice) {
+                case 0: // Employee ID
+                    String inputEmpId = ThemeManager.showLargeInputDialog(this, 
+                        "Current: " + emp.getEmployeeId() + "\n\nEnter new Employee ID:", 
+                        "Edit Employee ID");
+                    if (inputEmpId != null && !inputEmpId.trim().isEmpty()) {
+                        newEmpId = inputEmpId.trim().toUpperCase();
+                        updated = true;
+                        updatedField = "Employee ID";
+                    }
+                    break;
+                    
+                case 1: // Full Name
+                    String inputName = ThemeManager.showLargeInputDialog(this, 
+                        "Current: " + emp.getFullName() + "\n\nEnter new Full Name:", 
+                        "Edit Full Name");
+                    if (inputName != null && !inputName.trim().isEmpty()) {
+                        newName = InputValidator.capitalizeName(inputName.trim());
+                        updated = true;
+                        updatedField = "Full Name";
+                    }
+                    break;
+                    
+                case 2: // Contact Number
+                    String inputContact = ThemeManager.showLargeInputDialog(this, 
+                        "Current: " + (emp.getContactNumber() != null ? emp.getContactNumber() : "Not Set") + 
+                        "\n\nEnter new Contact Number:", 
+                        "Edit Contact Number");
+                    if (inputContact != null && !inputContact.trim().isEmpty()) {
+                        String error = InputValidator.getPhoneErrorMessage(inputContact);
+                        if (error.isEmpty()) {
+                            newContact = InputValidator.formatPhoneNumber(inputContact);
+                            updated = true;
+                            updatedField = "Contact Number";
+                        } else {
+                            JOptionPane.showMessageDialog(this, error, "Validation Error", JOptionPane.ERROR_MESSAGE);
+                            return;
+                        }
+                    }
+                    break;
+                    
+                case 3: // Address
+                    String inputAddress = ThemeManager.showLargeInputDialog(this, 
+                        "Current: " + (emp.getAddress() != null ? emp.getAddress() : "Not Set") + 
+                        "\n\nEnter new Address:", 
+                        "Edit Address");
+                    if (inputAddress != null && !inputAddress.trim().isEmpty()) {
+                        newAddress = inputAddress.trim();
+                        updated = true;
+                        updatedField = "Address";
+                    }
+                    break;
+                    
+                case 4: // Position
+                    String inputPosition = ThemeManager.showLargeInputDialog(this, 
+                        "Current: " + (emp.getPosition() != null ? emp.getPosition() : "Not Set") + 
+                        "\n\nEnter new Position:", 
+                        "Edit Position");
+                    if (inputPosition != null && !inputPosition.trim().isEmpty()) {
+                        newPosition = InputValidator.capitalizeName(inputPosition.trim());
+                        updated = true;
+                        updatedField = "Position";
+                    }
+                    break;
+                    
+                case 5: // RFID Card ID
+                    String currentRFID = emp.getRfidCardId();
+                    String rfidInput = ThemeManager.showLargeInputDialog(this, 
+                        "Current RFID Card ID: " + (currentRFID != null ? currentRFID : "Not Set") + 
+                        "\n\nEnter new RFID Card ID (leave blank to remove):", 
+                        "Edit RFID Card ID");
+                    
+                    if (rfidInput != null) {
+                        if (rfidInput.trim().isEmpty()) {
+                            newRFID = null;
+                            updated = true;
+                            updatedField = "RFID Card ID (removed)";
+                        } else {
+                            String rfidValue = rfidInput.trim().toUpperCase();
+                            // Check if RFID card is already registered to another employee
+                            if (DatabaseOperations.isRFIDCardRegistered(rfidValue)) {
+                                String existingEmpId = DatabaseOperations.getEmployeeIdByRFID(rfidValue);
+                                if (existingEmpId != null && !existingEmpId.equals(emp.getEmployeeId())) {
+                                    JOptionPane.showMessageDialog(this, 
+                                        "RFID Card already registered to another employee!", 
+                                        "Error", 
+                                        JOptionPane.ERROR_MESSAGE);
+                                    return;
+                                }
+                            }
+                            newRFID = rfidValue;
+                            updated = true;
+                            updatedField = "RFID Card ID";
+                        }
+                    }
+                    break;
+                    
+                case 6: // Edit All Fields
+                    // Edit all fields (original behavior)
+                    String allEmpId = ThemeManager.showLargeInputDialog(this, 
+                        "Current: " + emp.getEmployeeId() + "\n\nEdit Employee ID:", 
+                        "Edit Employee ID");
+                    if (allEmpId == null) return;
+                    newEmpId = allEmpId.trim().toUpperCase();
+                    
+                    String allName = ThemeManager.showLargeInputDialog(this, 
+                        "Current: " + emp.getFullName() + "\n\nEdit Full Name:", 
+                        "Edit Full Name");
+                    if (allName == null) return;
+                    newName = InputValidator.capitalizeName(allName.trim());
+                    
+                    String allContact = ThemeManager.showLargeInputDialog(this, 
+                        "Current: " + (emp.getContactNumber() != null ? emp.getContactNumber() : "Not Set") + 
+                        "\n\nEdit Contact Number:", 
+                        "Edit Contact Number");
+                    if (allContact == null) return;
+                    String contactError = InputValidator.getPhoneErrorMessage(allContact);
+                    if (!contactError.isEmpty()) {
+                        JOptionPane.showMessageDialog(this, contactError, "Validation Error", JOptionPane.ERROR_MESSAGE);
+                        return;
+                    }
+                    newContact = InputValidator.formatPhoneNumber(allContact);
+                    
+                    String allAddress = ThemeManager.showLargeInputDialog(this, 
+                        "Current: " + (emp.getAddress() != null ? emp.getAddress() : "Not Set") + 
+                        "\n\nEdit Address:", 
+                        "Edit Address");
+                    if (allAddress == null) return;
+                    newAddress = allAddress.trim();
+                    
+                    String allPosition = ThemeManager.showLargeInputDialog(this, 
+                        "Current: " + (emp.getPosition() != null ? emp.getPosition() : "Not Set") + 
+                        "\n\nEdit Position:", 
+                        "Edit Position");
+                    if (allPosition == null) return;
+                    newPosition = InputValidator.capitalizeName(allPosition.trim());
+                    
+                    // RFID Card ID
+                    String allRFID = emp.getRfidCardId();
+                    String rfidMessage = "Current RFID Card ID: " + (allRFID != null ? allRFID : "Not Set") + 
+                                        "\n\nDo you want to update RFID Card ID?";
+                    int rfidUpdateChoice = JOptionPane.showConfirmDialog(this, 
+                        rfidMessage, 
+                        "Update RFID Card", 
+                        JOptionPane.YES_NO_OPTION);
+                    
+                    if (rfidUpdateChoice == JOptionPane.YES_OPTION) {
+                        String rfidInputAll = ThemeManager.showLargeInputDialog(this, 
+                            "Enter/Scan RFID Card ID (leave blank to remove):", 
+                            "RFID Card ID");
+                        
+                        if (rfidInputAll != null) {
+                            if (rfidInputAll.trim().isEmpty()) {
+                                newRFID = null;
+                            } else {
+                                String rfidValueAll = rfidInputAll.trim().toUpperCase();
+                                if (DatabaseOperations.isRFIDCardRegistered(rfidValueAll)) {
+                                    String existingEmpIdAll = DatabaseOperations.getEmployeeIdByRFID(rfidValueAll);
+                                    if (existingEmpIdAll != null && !existingEmpIdAll.equals(emp.getEmployeeId())) {
+                                        JOptionPane.showMessageDialog(this, 
+                                            "RFID Card already registered to another employee!", 
+                                            "Error", 
+                                            JOptionPane.ERROR_MESSAGE);
+                                        return;
+                                    }
+                                }
+                                newRFID = rfidValueAll;
+                            }
+                        }
+                    }
+                    
+                    updated = true;
+                    updatedField = "All Fields";
+                    break;
+            }
+            
+            // Update employee if any field was changed
+            if (updated) {
+                if (DatabaseOperations.updateEmployee(newEmpId, newName, newContact, newAddress, newPosition, newRFID)) {
+                    String successMsg = "✅ Employee updated successfully!\n\nUpdated: " + updatedField;
+                    if (fieldChoice == 5 && newRFID != null) {
+                        successMsg += "\n\nRFID Card ID: " + newRFID;
+                    }
+                    JOptionPane.showMessageDialog(this, successMsg, "Success", JOptionPane.INFORMATION_MESSAGE);
+                } else {
+                    JOptionPane.showMessageDialog(this, "Error updating employee!", "Error", JOptionPane.ERROR_MESSAGE);
+                }
             }
         }
     }
