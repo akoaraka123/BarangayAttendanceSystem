@@ -4,6 +4,7 @@ import java.sql.Time;
 import java.sql.Date;
 import java.time.Duration;
 import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 
 public class AttendanceLog {
     private int id;
@@ -47,6 +48,44 @@ public class AttendanceLog {
         return "";
     }
     
+    // Get formatted clock in time
+    public String getFormattedClockIn() {
+        if (clockIn != null) {
+            try {
+                LocalTime time = clockIn.toLocalTime();
+                return time.format(DateTimeFormatter.ofPattern("HH:mm:ss"));
+            } catch (Exception e) {
+                return "";
+            }
+        }
+        return "";
+    }
+    
+    // Get formatted clock out time
+    public String getFormattedClockOut() {
+        if (clockOut != null) {
+            try {
+                LocalTime time = clockOut.toLocalTime();
+                return time.format(DateTimeFormatter.ofPattern("HH:mm:ss"));
+            } catch (Exception e) {
+                return "";
+            }
+        }
+        return "";
+    }
+    
+    // Get formatted date
+    public String getFormattedDate() {
+        if (logDate != null) {
+            try {
+                return logDate.toLocalDate().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+            } catch (Exception e) {
+                return logDate.toString();
+            }
+        }
+        return "";
+    }
+    
     // Getters and Setters
     public int getId() { return id; }
     public void setId(int id) { this.id = id; }
@@ -69,8 +108,8 @@ public class AttendanceLog {
     @Override
     public String toString() {
         return employeeName + "," + employeeId + "," + 
-               (clockIn != null ? clockIn.toString() : "") + "," + 
-               (clockOut != null ? clockOut.toString() : "") + "," + 
-               logDate.toString();
+               (clockIn != null ? getFormattedClockIn() : "") + "," + 
+               (clockOut != null ? getFormattedClockOut() : "") + "," + 
+               getFormattedDate();
     }
 }

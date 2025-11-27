@@ -6,7 +6,7 @@ import java.sql.SQLException;
 import java.util.Properties;
 
 public class DBConnection {
-    private static final String URL = "jdbc:mysql://localhost:3306/attendance_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true";
+    private static final String URL = "jdbc:mysql://localhost:3306/attendance_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true&useUnicode=true&characterEncoding=UTF-8";
     private static final String USER = "root";
     private static final String PASSWORD = "";
     
@@ -31,6 +31,9 @@ public class DBConnection {
             props.setProperty("useSSL", "false");
             props.setProperty("serverTimezone", "UTC");
             props.setProperty("allowPublicKeyRetrieval", "true");
+            props.setProperty("useUnicode", "true");
+            props.setProperty("characterEncoding", "UTF-8");
+            props.setProperty("characterSetResults", "UTF-8");
             props.setProperty("connectTimeout", "10000");
             props.setProperty("socketTimeout", "30000");
             

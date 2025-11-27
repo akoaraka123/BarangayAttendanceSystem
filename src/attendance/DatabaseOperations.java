@@ -18,8 +18,8 @@ public class DatabaseOperations {
     
     // ===== USER OPERATIONS =====
     public static boolean authenticateUser(String email, String password) {
-        System.out.println("🔍 DEBUG: Attempting login for email: " + email);
-        System.out.println("🔍 DEBUG: Password length: " + password.length());
+        System.out.println("DEBUG: Attempting login for email: " + email);
+        System.out.println("DEBUG: Password length: " + password.length());
         
         String sql = "SELECT password, role FROM users WHERE email = ?";
         try (Connection conn = DBConnection.getConnection();
@@ -31,20 +31,20 @@ public class DatabaseOperations {
             if (rs.next()) {
                 String storedPassword = rs.getString("password");
                 String role = rs.getString("role");
-                System.out.println("🔍 DEBUG: User found in database");
-                System.out.println("🔍 DEBUG: Stored password: " + storedPassword);
-                System.out.println("🔍 DEBUG: User role: " + role);
+                System.out.println("DEBUG: User found in database");
+                System.out.println("DEBUG: Stored password: " + storedPassword);
+                System.out.println("DEBUG: User role: " + role);
                 
                 // Temporary: Direct comparison for plain text
                 boolean passwordMatch = password.equals(storedPassword);
-                System.out.println("🔍 DEBUG: Password match: " + passwordMatch);
+                System.out.println("DEBUG: Password match: " + passwordMatch);
                 
                 return passwordMatch;
             } else {
-                System.out.println("🔍 DEBUG: No user found with email: " + email);
+                System.out.println("DEBUG: No user found with email: " + email);
             }
         } catch (SQLException e) {
-            System.err.println("❌ Authentication error: " + e.getMessage());
+            System.err.println("Authentication error: " + e.getMessage());
             e.printStackTrace();
         }
         return false;
@@ -228,13 +228,33 @@ public class DatabaseOperations {
     }
     
     public static boolean removeEmployee(String empId) {
-        String sql = "DELETE FROM employees WHERE employee_id = ?";
-        try (Connection conn = DBConnection.getConnection();
-             PreparedStatement pst = conn.prepareStatement(sql)) {
+        try (Connection conn = DBConnection.getConnection()) {
+            // Start transaction
+            conn.setAutoCommit(false);
             
-            pst.setString(1, empId);
-            int result = pst.executeUpdate();
-            return result > 0;
+            try {
+                // First, delete all attendance logs for this employee
+                String deleteLogsSql = "DELETE FROM attendance_logs WHERE employee_id = ?";
+                try (PreparedStatement logsPst = conn.prepareStatement(deleteLogsSql)) {
+                    logsPst.setString(1, empId);
+                    logsPst.executeUpdate();
+                }
+                
+                // Then, delete the employee
+                String deleteEmpSql = "DELETE FROM employees WHERE employee_id = ?";
+                try (PreparedStatement empPst = conn.prepareStatement(deleteEmpSql)) {
+                    empPst.setString(1, empId);
+                    int result = empPst.executeUpdate();
+                    
+                    // Commit transaction
+                    conn.commit();
+                    return result > 0;
+                }
+            } catch (SQLException e) {
+                // Rollback on error
+                conn.rollback();
+                throw e;
+            }
         } catch (SQLException e) {
             System.err.println("Error removing employee: " + e.getMessage());
             return false;

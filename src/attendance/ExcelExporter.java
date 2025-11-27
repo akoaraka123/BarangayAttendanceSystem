@@ -15,23 +15,30 @@ public class ExcelExporter {
             
             // Write data
             SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
-            SimpleDateFormat timeFormat = new SimpleDateFormat("HH:mm:ss");
             
             for (AttendanceLog log : logs) {
                 String date = dateFormat.format(log.getLogDate());
                 String empId = log.getEmployeeId();
                 String empName = log.getEmployeeName();
-                String clockIn = log.getClockIn() != null ? timeFormat.format(log.getClockIn()) : "";
-                String clockOut = log.getClockOut() != null ? timeFormat.format(log.getClockOut()) : "";
+                String clockIn = log.getFormattedClockIn();
+                String clockOut = log.getFormattedClockOut();
                 String hoursWorked = log.getHoursWorked();
                 
+                // Properly quote fields that might contain commas
+                String quotedDate = date;
+                String quotedEmpId = empId;
+                String quotedEmpName = empName.contains(",") ? "\"" + empName + "\"" : empName;
+                String quotedClockIn = clockIn;
+                String quotedClockOut = clockOut;
+                String quotedHours = hoursWorked;
+                
                 writer.printf("%s,%s,%s,%s,%s,%s%n", 
-                    date, empId, empName, clockIn, clockOut, hoursWorked);
+                    quotedDate, quotedEmpId, quotedEmpName, quotedClockIn, quotedClockOut, quotedHours);
             }
             
             return true;
         } catch (IOException e) {
-            System.err.println("Error exporting to CSV: " + e.getMessage());
+            System.err.println("Error exporting attendance to CSV: " + e.getMessage());
             return false;
         }
     }
@@ -46,13 +53,16 @@ public class ExcelExporter {
             SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
             
             for (Employee emp : employees) {
+                // Properly quote fields that might contain commas
+                String quotedEmpId = emp.getEmployeeId();
+                String quotedName = emp.getFullName().contains(",") ? "\"" + emp.getFullName() + "\"" : emp.getFullName();
+                String quotedContact = emp.getContactNumber().contains(",") ? "\"" + emp.getContactNumber() + "\"" : emp.getContactNumber();
+                String quotedAddress = emp.getAddress().contains(",") ? "\"" + emp.getAddress() + "\"" : emp.getAddress();
+                String quotedPosition = emp.getPosition().contains(",") ? "\"" + emp.getPosition() + "\"" : emp.getPosition();
+                String quotedRegDate = dateFormat.format(new Date());
+                
                 writer.printf("%s,%s,%s,%s,%s,%s%n", 
-                    emp.getEmployeeId(), 
-                    emp.getFullName(), 
-                    emp.getContactNumber(), 
-                    emp.getAddress(), 
-                    emp.getPosition(),
-                    dateFormat.format(new Date())); // Current date as registration date
+                    quotedEmpId, quotedName, quotedContact, quotedAddress, quotedPosition, quotedRegDate);
             }
             
             return true;
@@ -116,20 +126,22 @@ public class ExcelExporter {
             // Detailed records
             writer.println("DETAILED ATTENDANCE RECORDS:");
             writer.println("----------------------------");
-            writer.println("Date\t\tEmployee ID\tName\t\tClock In\tClock Out\tHours");
-            writer.println("----\t\t-----------\t----\t\t--------\t--------\t-----");
+            writer.printf("%-12s %-12s %-20s %-10s %-10s %-10s%n", 
+                "Date", "Employee ID", "Name", "Clock In", "Clock Out", "Hours");
+            writer.printf("%-12s %-12s %-20s %-10s %-10s %-10s%n", 
+                "----", "-----------", "----", "--------", "--------", "-----");
             
             for (AttendanceLog log : logs) {
                 String date = dateFormat.format(log.getLogDate());
                 String empId = log.getEmployeeId();
                 String empName = log.getEmployeeName();
-                String clockIn = log.getClockIn() != null ? new SimpleDateFormat("HH:mm").format(log.getClockIn()) : "";
-                String clockOut = log.getClockOut() != null ? new SimpleDateFormat("HH:mm").format(log.getClockOut()) : "";
+                String clockIn = log.getClockIn() != null ? log.getFormattedClockIn() : "";
+                String clockOut = log.getClockOut() != null ? log.getFormattedClockOut() : "";
                 String hoursWorked = log.getHoursWorked();
                 
-                writer.printf("%s\t%s\t\t%s\t\t%s\t%s\t\t%s%n", 
-                    date, empId, empName.length() > 15 ? 
-                    empName.substring(0, 12) + "..." : empName, clockIn, clockOut, hoursWorked);
+                // Use clean spacing for better readability
+                writer.printf("%-12s %-12s %-20s %-10s %-10s %-10s%n", 
+                    date, empId, empName, clockIn, clockOut, hoursWorked);
             }
             
             writer.println();

@@ -64,7 +64,7 @@ public class DashboardFrame extends JFrame {
         
         // Employee ID validation
         while (true) {
-            empId = ThemeManager.showLargeInputDialog(this, "Enter/Scan Employee ID (e.g., EMP001):", "Employee ID");
+            empId = ThemeManager.showLargeInputDialog(this, "Enter/Scan Employee ID:", "Employee ID");
             if (empId == null) return;
             
             String error = InputValidator.getEmpIdErrorMessage(empId);
@@ -111,7 +111,7 @@ public class DashboardFrame extends JFrame {
         
         // Employee ID validation
         while (true) {
-            empId = ThemeManager.showLargeInputDialog(this, "Enter Employee ID (e.g., EMP001):", "Employee ID");
+            empId = ThemeManager.showLargeInputDialog(this, "Enter Employee ID:", "Employee ID");
             if (empId == null) return;
             
             String error = InputValidator.getEmpIdErrorMessage(empId);

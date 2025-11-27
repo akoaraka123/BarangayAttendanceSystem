@@ -87,20 +87,16 @@ public class AdminDashboardFrame extends JFrame {
     }
 
     private void registerEmployee() {
-        String empId, fullName, contact, address, position;
+        String fullName, contact, address, position;
 
-        // Employee ID validation
-        while (true) {
-            empId = ThemeManager.showLargeInputDialog(this, "Enter Employee ID (e.g., EMP001):", "Employee ID");
-            if (empId == null) return;
-            
-            String error = InputValidator.getEmpIdErrorMessage(empId);
-            if (error.isEmpty()) {
-                empId = empId.trim().toUpperCase();
-                break;
-            }
-            JOptionPane.showMessageDialog(this, error, "Validation Error", JOptionPane.ERROR_MESSAGE);
-        }
+        // Auto-generate Employee ID
+        String empId = generateEmployeeId();
+        
+        // Show the generated ID to user
+        JOptionPane.showMessageDialog(this, 
+            "Generated Employee ID: " + empId + "\n\nPlease continue with employee registration.", 
+            "Employee ID Generated", 
+            JOptionPane.INFORMATION_MESSAGE);
 
         // Full Name validation
         while (true) {
@@ -183,9 +179,9 @@ public class AdminDashboardFrame extends JFrame {
             data[i][0] = log.getId();
             data[i][1] = log.getEmployeeName();
             data[i][2] = log.getEmployeeId();
-            data[i][3] = log.getClockIn() != null ? log.getClockIn().toString() : "";
-            data[i][4] = log.getClockOut() != null ? log.getClockOut().toString() : "";
-            data[i][5] = log.getLogDate().toString();
+            data[i][3] = log.getFormattedClockIn();
+            data[i][4] = log.getFormattedClockOut();
+            data[i][5] = log.getFormattedDate();
             data[i][6] = log.getHoursWorked();
         }
 
@@ -364,8 +360,23 @@ public class AdminDashboardFrame extends JFrame {
 
         Employee emp = employees.get(empIndex - 1);
 
+        // Check if employee has attendance records
+        List<AttendanceLog> empLogs = DatabaseOperations.getAllAttendanceLogs();
+        boolean hasLogs = false;
+        for (AttendanceLog log : empLogs) {
+            if (log.getEmployeeId().equals(emp.getEmployeeId())) {
+                hasLogs = true;
+                break;
+            }
+        }
+
+        String warningMessage = "Are you sure you want to remove employee:\n" + emp.toString();
+        if (hasLogs) {
+            warningMessage += "\n\nWARNING: This employee has attendance records that will also be deleted!";
+        }
+
         int confirm = JOptionPane.showConfirmDialog(this,
-                "Are you sure you want to remove employee:\n" + emp.toString(),
+                warningMessage,
                 "Confirm Remove", JOptionPane.YES_NO_OPTION);
         if (confirm != JOptionPane.YES_OPTION) return;
 
@@ -462,5 +473,30 @@ public class AdminDashboardFrame extends JFrame {
             dispose(); // Close admin dashboard
             new LoginFrame().setVisible(true); // Open login frame
         }
+    }
+    
+    private String generateEmployeeId() {
+        List<Employee> employees = DatabaseOperations.getAllEmployees();
+        int maxNumber = 0;
+        
+        // Find the highest existing employee number
+        for (Employee emp : employees) {
+            String empId = emp.getEmployeeId();
+            if (empId.startsWith("EMP")) {
+                try {
+                    String numberPart = empId.substring(3); // Remove "EMP"
+                    int number = Integer.parseInt(numberPart);
+                    if (number > maxNumber) {
+                        maxNumber = number;
+                    }
+                } catch (NumberFormatException e) {
+                    // Skip invalid formats
+                }
+            }
+        }
+        
+        // Generate next number
+        int nextNumber = maxNumber + 1;
+        return "EMP" + String.format("%03d", nextNumber); // Format as EMP001, EMP002, etc.
     }
 }
