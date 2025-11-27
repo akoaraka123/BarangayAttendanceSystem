@@ -16,7 +16,7 @@ A comprehensive attendance tracking system developed for barangay (local communi
 ## Quick Start
 
 ### Prerequisites
-- Java 8 or higher
+- Java JDK 8 or higher (JDK required, not just JRE)
 - MySQL Server 5.7+ or MariaDB 10.2+
 - MySQL Connector/J driver
 
@@ -28,26 +28,33 @@ A comprehensive attendance tracking system developed for barangay (local communi
    cd BarangayAttendanceSystem
    ```
 
-2. **Database Setup**
+2. **Download MySQL Connector/J**
+   ```bash
+   # Create the lib folder
+   mkdir dist\lib
+   
+   # Download from Maven (or manually from mysql.com)
+   # Place mysql-connector-j-x.x.x.jar in dist/lib/ folder
+   ```
+   Download link: https://repo1.maven.org/maven2/com/mysql/mysql-connector-j/8.0.33/mysql-connector-j-8.0.33.jar
+
+3. **Database Setup**
    ```sql
    CREATE DATABASE attendance_db;
    mysql -u root attendance_db < database_setup.sql
    ```
 
-3. **Build the Application**
+4. **Build the Application**
    ```bash
-   # Windows
-   build_jar.bat
-   
-   # Linux/Mac
-   chmod +x build_jar.sh
-   ./build_jar.sh
+   # Windows - Creates self-contained JAR with MySQL driver included
+   build_fat_jar.bat
    ```
 
-4. **Run the Application**
+5. **Run the Application**
    ```bash
-   java -jar dist/BarangayAttendanceSystem.jar
+   java -jar BarangayAttendanceSystem.jar
    ```
+   Or just double-click the JAR file!
 
 ## Default Login Credentials
 
@@ -103,21 +110,24 @@ private static final String PASSWORD = "";
 ### Important Note
 **JAR files are excluded from Git** to keep the repository clean. You need to build the JAR file locally after cloning.
 
-### Windows
-1. Ensure MySQL Connector/J is downloaded and placed in `dist/lib/` folder
-2. Run `build_jar.bat`
-3. JAR file will be created in `dist/` folder
+### Step 1: Download MySQL Connector
+Download the MySQL Connector/J and place it in `dist/lib/` folder:
+- Direct link: https://repo1.maven.org/maven2/com/mysql/mysql-connector-j/8.0.33/mysql-connector-j-8.0.33.jar
+- Or from: https://dev.mysql.com/downloads/connector/j/
 
-### Linux/Mac
-1. Ensure MySQL Connector/J is downloaded and placed in `dist/lib/` folder
-2. Run `chmod +x build_jar.sh` then `./build_jar.sh`
-3. JAR file will be created in `dist/` folder
-
-### After Building
-Run the application:
+### Step 2: Build (Windows)
 ```bash
-java -jar dist/BarangayAttendanceSystem.jar
+# Run the build script - it will auto-detect your Java installation
+build_fat_jar.bat
 ```
+
+This creates a **self-contained JAR** that includes the MySQL driver inside, so you can copy the single JAR file anywhere.
+
+### Step 3: Run the Application
+```bash
+java -jar BarangayAttendanceSystem.jar
+```
+Or simply double-click the JAR file!
 
 ## Troubleshooting
 

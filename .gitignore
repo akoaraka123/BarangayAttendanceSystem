@@ -1,25 +1,41 @@
+# Build outputs
 /build/
-/dist/
 /nbproject/private/
 *.class
-*.log
-.DS_Store
-Thumbs.db
-/.idea/
-/.vscode/
-*~
 
-# Exclude JAR files from Git
+# JAR files - users must build locally
 *.jar
 
-# Database files
+# Keep dist/lib folder structure but ignore contents
+/dist/*
+!/dist/lib/
+/dist/lib/*
+
+# Temporary build files
+/temp_build/
+/deploy/
+temp_manifest.mf
+
+# IDE files
+/.idea/
+/.vscode/
+*.iml
+
+# OS files
+.DS_Store
+Thumbs.db
+*~
+
+# Log files
+*.log
+
+# Database files (local)
 *.db
 *.sqlite
 *.sqlite3
 
-# Temporary files
-*.tmp
-*.temp
-
-# Log files
-*.txt
+# Keep these files (not ignored)
+# - README.md
+# - database_setup.sql
+# - build_fat_jar.bat
+# - src/**
