@@ -4,6 +4,7 @@
     <configuration>
         <data xmlns="http://www.netbeans.org/ns/j2se-project/3">
             <name>BarangayAttendanceSystem</name>
+            <explicit-platform explicit-source-supported="true"/>
             <source-roots>
                 <root id="src.dir"/>
             </source-roots>
@@ -12,7 +13,7 @@
             </test-roots>
         </data>
         <libraries xmlns="http://www.netbeans.org/ns/ant-project-libraries/1">
-            <definitions>C:\Users\Eugene\Downloads\mysql-connector-j-9.4.0\nblibraries.properties</definitions>
+            <definitions>D:\mysql-connector-j-9.5.0\nblibraries.properties</definitions>
         </libraries>
     </configuration>
 </project>

@@ -3,144 +3,190 @@ package attendance;
 import javax.swing.*;
 import javax.swing.table.*;
 import java.awt.*;
-import java.io.*;
-import java.time.Duration;
-import java.time.LocalTime;
-import java.time.format.DateTimeFormatter;
+import java.util.List;
 
 public class AdminDashboardFrame extends JFrame {
-    private JButton btnRegister, btnViewLogs, btnViewEmployees, btnRemove;
+    private JButton btnRegister, btnViewLogs, btnViewEmployees, btnRemove, btnChangePassword;
+    private JButton btnExportAttendance, btnExportEmployees, btnGenerateReport, btnViewStatistics, btnLogout;
 
     public AdminDashboardFrame() {
         setTitle("Admin Dashboard");
-        setExtendedState(JFrame.MAXIMIZED_BOTH); // fullscreen
+        setExtendedState(JFrame.MAXIMIZED_BOTH);
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
 
         // ====== Header ======
-        JLabel header = new JLabel("Admin Dashboard", SwingConstants.CENTER);
-        header.setFont(new Font("Segoe UI", Font.BOLD, 36));
-        header.setBorder(BorderFactory.createEmptyBorder(30, 10, 30, 10));
+        JPanel headerPanel = ThemeManager.createHeaderPanel();
+        headerPanel.setPreferredSize(new Dimension(800, 100));
+        headerPanel.setLayout(new BorderLayout());
+        
+        JLabel headerLabel = new JLabel("🏢 Admin Dashboard", SwingConstants.CENTER);
+        ThemeManager.styleHeaderLabel(headerLabel);
+        headerPanel.add(headerLabel, BorderLayout.CENTER);
+        
+        // Logout button on the right
+        btnLogout = new JButton("🚪 Logout");
+        ThemeManager.styleDangerButton(btnLogout);
+        btnLogout.setPreferredSize(new Dimension(120, 40));
+        JPanel logoutPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        logoutPanel.setOpaque(false);
+        logoutPanel.add(btnLogout);
+        headerPanel.add(logoutPanel, BorderLayout.EAST);
 
         // ====== Button Panel ======
-        JPanel panel = new JPanel(new GridLayout(4, 1, 25, 25));
-        panel.setBorder(BorderFactory.createEmptyBorder(50, 500, 100, 500));
+        JPanel panel = ThemeManager.createModernPanel();
+        panel.setLayout(new GridLayout(4, 2, 20, 20));
+        panel.setBorder(BorderFactory.createEmptyBorder(50, 300, 100, 300));
 
-        btnRegister = new JButton("Register Employee");
-        btnViewLogs = new JButton("View Attendance Logs");
-        btnViewEmployees = new JButton("View & Edit Registered Employees");
-        btnRemove = new JButton("Remove Employee");
+        btnRegister = new JButton("👤 Register Employee");
+        btnViewLogs = new JButton("📋 View Attendance Logs");
+        btnViewEmployees = new JButton("👥 View & Edit Employees");
+        btnRemove = new JButton("🗑️ Remove Employee");
+        btnChangePassword = new JButton("🔐 Change Password");
+        btnExportAttendance = new JButton("📊 Export Attendance (CSV)");
+        btnExportEmployees = new JButton("📇 Export Employees (CSV)");
+        btnGenerateReport = new JButton("📄 Generate Report");
+        btnViewStatistics = new JButton("📈 View Statistics");
 
-        Dimension buttonSize = new Dimension(450, 70);
-        Font buttonFont = new Font("Segoe UI", Font.BOLD, 22);
-        JButton[] buttons = {btnRegister, btnViewLogs, btnViewEmployees, btnRemove};
+        Dimension buttonSize = new Dimension(350, 70);
+        
+        // Style buttons with different colors
+        ThemeManager.styleButton(btnRegister);
+        ThemeManager.styleButton(btnViewLogs);
+        ThemeManager.styleButton(btnViewEmployees);
+        ThemeManager.styleDangerButton(btnRemove);
+        ThemeManager.styleButton(btnChangePassword);
+        ThemeManager.styleSuccessButton(btnExportAttendance);
+        ThemeManager.styleSuccessButton(btnExportEmployees);
+        ThemeManager.styleButton(btnGenerateReport);
+        ThemeManager.styleButton(btnViewStatistics);
+        
+        JButton[] buttons = {btnRegister, btnViewLogs, btnViewEmployees, btnRemove, 
+                            btnChangePassword, btnExportAttendance, btnExportEmployees, 
+                            btnGenerateReport, btnViewStatistics};
+        
         for (JButton b : buttons) {
             b.setPreferredSize(buttonSize);
-            b.setFont(buttonFont);
             panel.add(b);
         }
 
-        // Layout
         setLayout(new BorderLayout());
-        add(header, BorderLayout.NORTH);
+        add(headerPanel, BorderLayout.NORTH);
         add(panel, BorderLayout.CENTER);
 
-        // Actions
         btnRegister.addActionListener(e -> registerEmployee());
         btnViewLogs.addActionListener(e -> viewLogs());
         btnViewEmployees.addActionListener(e -> viewEmployees());
         btnRemove.addActionListener(e -> removeEmployee());
+        btnChangePassword.addActionListener(e -> new ChangePasswordFrame().setVisible(true));
+        btnExportAttendance.addActionListener(e -> exportAttendance());
+        btnExportEmployees.addActionListener(e -> exportEmployees());
+        btnGenerateReport.addActionListener(e -> generateReport());
+        btnViewStatistics.addActionListener(e -> viewStatistics());
+        btnLogout.addActionListener(e -> logout());
     }
 
     private void registerEmployee() {
         String empId, fullName, contact, address, position;
 
+        // Employee ID validation
         while (true) {
-            empId = JOptionPane.showInputDialog(this, "Enter Employee ID:");
+            empId = ThemeManager.showLargeInputDialog(this, "Enter Employee ID (e.g., EMP001):", "Employee ID");
             if (empId == null) return;
-            if (!empId.trim().isEmpty()) break;
-            JOptionPane.showMessageDialog(this, "Employee ID is required!");
+            
+            String error = InputValidator.getEmpIdErrorMessage(empId);
+            if (error.isEmpty()) {
+                empId = empId.trim().toUpperCase();
+                break;
+            }
+            JOptionPane.showMessageDialog(this, error, "Validation Error", JOptionPane.ERROR_MESSAGE);
         }
 
+        // Full Name validation
         while (true) {
-            fullName = JOptionPane.showInputDialog(this, "Enter Full Name:");
+            fullName = ThemeManager.showLargeInputDialog(this, "Enter Full Name:", "Full Name");
             if (fullName == null) return;
-            if (!fullName.trim().isEmpty()) break;
-            JOptionPane.showMessageDialog(this, "Full Name is required!");
+            
+            String error = InputValidator.getNameErrorMessage(fullName);
+            if (error.isEmpty()) {
+                fullName = InputValidator.capitalizeName(fullName);
+                break;
+            }
+            JOptionPane.showMessageDialog(this, error, "Validation Error", JOptionPane.ERROR_MESSAGE);
         }
 
+        // Contact Number validation
         while (true) {
-            contact = JOptionPane.showInputDialog(this, "Enter Contact Number:");
+            contact = ThemeManager.showLargeInputDialog(this, "Enter Contact Number (09XXXXXXXX or +639XXXXXXXX):", "Contact Number");
             if (contact == null) return;
-            if (!contact.trim().isEmpty()) break;
-            JOptionPane.showMessageDialog(this, "Contact Number is required!");
+            
+            String error = InputValidator.getPhoneErrorMessage(contact);
+            if (error.isEmpty()) {
+                contact = InputValidator.formatPhoneNumber(contact);
+                break;
+            }
+            JOptionPane.showMessageDialog(this, error, "Validation Error", JOptionPane.ERROR_MESSAGE);
         }
 
+        // Address validation
         while (true) {
-            address = JOptionPane.showInputDialog(this, "Enter Address:");
+            address = ThemeManager.showLargeInputDialog(this, "Enter Address:", "Address");
             if (address == null) return;
-            if (!address.trim().isEmpty()) break;
-            JOptionPane.showMessageDialog(this, "Address is required!");
+            
+            String error = InputValidator.getAddressErrorMessage(address);
+            if (error.isEmpty()) {
+                address = address.trim();
+                break;
+            }
+            JOptionPane.showMessageDialog(this, error, "Validation Error", JOptionPane.ERROR_MESSAGE);
         }
 
+        // Position validation
         while (true) {
-            position = JOptionPane.showInputDialog(this, "Enter Position:");
+            position = ThemeManager.showLargeInputDialog(this, "Enter Position:", "Position");
             if (position == null) return;
-            if (!position.trim().isEmpty()) break;
-            JOptionPane.showMessageDialog(this, "Position is required!");
+            
+            String error = InputValidator.getPositionErrorMessage(position);
+            if (error.isEmpty()) {
+                position = InputValidator.capitalizeName(position);
+                break;
+            }
+            JOptionPane.showMessageDialog(this, error, "Validation Error", JOptionPane.ERROR_MESSAGE);
         }
 
-        try (FileWriter fw = new FileWriter("employees.txt", true);
-             BufferedWriter bw = new BufferedWriter(fw);
-             PrintWriter out = new PrintWriter(bw)) {
+        // Check if employee already exists
+        if (DatabaseOperations.isEmployeeRegistered(empId, fullName)) {
+            JOptionPane.showMessageDialog(this, "Employee already registered!", "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
 
-            out.println(empId + "," + fullName + "," + contact + "," + address + "," + position);
-            JOptionPane.showMessageDialog(this, "Employee Registered Successfully!");
-
-        } catch (IOException ex) {
-            JOptionPane.showMessageDialog(this, "Error saving employee: " + ex.getMessage());
+        // Register employee
+        if (DatabaseOperations.registerEmployee(empId, fullName, contact, address, position)) {
+            JOptionPane.showMessageDialog(this, "Employee registered successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+        } else {
+            JOptionPane.showMessageDialog(this, "Error registering employee!", "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 
     private void viewLogs() {
-        File file = new File("attendance_logs.txt");
-        if (!file.exists()) {
-            JOptionPane.showMessageDialog(this, "No logs found.");
+        List<AttendanceLog> logs = DatabaseOperations.getAllAttendanceLogs();
+        if (logs.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "No attendance logs found.", "Information", JOptionPane.INFORMATION_MESSAGE);
             return;
         }
 
-        String[] lines;
-        try {
-            lines = new BufferedReader(new FileReader(file)).lines().toArray(String[]::new);
-        } catch (IOException e) {
-            JOptionPane.showMessageDialog(this, "Error reading logs file.");
-            return;
-        }
+        String[] columnNames = {"ID", "Name", "Employee ID", "Clock IN", "Clock OUT", "Date", "Hours Worked"};
+        Object[][] data = new Object[logs.size()][7];
 
-        String[] columnNames = {"#", "Name", "Employee ID", "Clock IN", "Clock OUT", "Date", "Hours Worked"};
-        Object[][] data = new Object[lines.length][7];
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm:ss");
-
-        for (int i = 0; i < lines.length; i++) {
-            String[] parts = lines[i].split(",");
-            data[i][0] = i + 1;
-            for (int j = 0; j < parts.length && j < 6; j++) data[i][j + 1] = parts[j];
-
-            String clockInStr = parts.length > 2 ? parts[2] : "";
-            String clockOutStr = parts.length > 3 ? parts[3] : "";
-            String hoursWorked = "";
-
-            if (!clockInStr.isEmpty() && !clockOutStr.isEmpty()) {
-                try {
-                    LocalTime clockIn = LocalTime.parse(clockInStr, formatter);
-                    LocalTime clockOut = LocalTime.parse(clockOutStr, formatter);
-                    Duration duration = Duration.between(clockIn, clockOut);
-                    long hours = duration.toHours();
-                    long minutes = duration.toMinutes() % 60;
-                    hoursWorked = hours + "h " + minutes + "m";
-                } catch (Exception ignored) {}
-            }
-            data[i][6] = hoursWorked;
+        for (int i = 0; i < logs.size(); i++) {
+            AttendanceLog log = logs.get(i);
+            data[i][0] = log.getId();
+            data[i][1] = log.getEmployeeName();
+            data[i][2] = log.getEmployeeId();
+            data[i][3] = log.getClockIn() != null ? log.getClockIn().toString() : "";
+            data[i][4] = log.getClockOut() != null ? log.getClockOut().toString() : "";
+            data[i][5] = log.getLogDate().toString();
+            data[i][6] = log.getHoursWorked();
         }
 
         JTable table = new JTable(data, columnNames) {
@@ -149,10 +195,15 @@ public class AdminDashboardFrame extends JFrame {
                 Component c = super.prepareRenderer(renderer, row, col);
                 String hoursText = (String) getValueAt(row, 6);
                 if (hoursText != null && !hoursText.isEmpty() && hoursText.contains("h")) {
-                    try { int h = Integer.parseInt(hoursText.split("h")[0].trim());
-                        c.setForeground(h < 8 ? Color.RED : Color.BLACK); }
-                    catch (Exception ex) { c.setForeground(Color.BLACK); }
-                } else { c.setForeground(Color.BLACK); }
+                    try { 
+                        int h = Integer.parseInt(hoursText.split("h")[0].trim());
+                        c.setForeground(h < 8 ? Color.RED : Color.BLACK); 
+                    } catch (Exception ex) { 
+                        c.setForeground(Color.BLACK); 
+                    }
+                } else { 
+                    c.setForeground(Color.BLACK); 
+                }
                 return c;
             }
         };
@@ -168,58 +219,62 @@ public class AdminDashboardFrame extends JFrame {
                 null, options, options[0]);
 
         if (choice == 1) { // REMOVE
-            String adminPass = JOptionPane.showInputDialog(this, "Enter Admin Password:");
+            String adminPass = ThemeManager.showLargeInputDialog(this, "Enter Admin Password:", "Admin Password");
             if (!"admin123".equals(adminPass)) {
-                JOptionPane.showMessageDialog(this, "Unauthorized! Incorrect password.");
+                JOptionPane.showMessageDialog(this, "Unauthorized! Incorrect password.", "Error", JOptionPane.ERROR_MESSAGE);
                 return;
             }
 
-            StringBuilder sb = new StringBuilder("Attendance Logs:\n");
-            for (int i = 0; i < lines.length; i++) sb.append(i + 1).append(". ").append(lines[i]).append("\n");
+            String inputId = ThemeManager.showLargeInputDialog(this, "Enter the Log ID to remove:", "Remove Log");
+            int logId;
+            try { 
+                logId = Integer.parseInt(inputId); 
+            } catch (NumberFormatException e) { 
+                JOptionPane.showMessageDialog(this, "Invalid ID!", "Error", JOptionPane.ERROR_MESSAGE); 
+                return; 
+            }
 
-            String inputIndex = JOptionPane.showInputDialog(this, sb.toString() + "\nEnter the log number to remove:");
-            int logIndex;
-            try { logIndex = Integer.parseInt(inputIndex); }
-            catch (NumberFormatException e) { JOptionPane.showMessageDialog(this, "Invalid number!"); return; }
+            // Find the log
+            AttendanceLog logToRemove = null;
+            for (AttendanceLog log : logs) {
+                if (log.getId() == logId) {
+                    logToRemove = log;
+                    break;
+                }
+            }
 
-            if (logIndex < 1 || logIndex > lines.length) {
-                JOptionPane.showMessageDialog(this, "Log number out of range!"); return;
+            if (logToRemove == null) {
+                JOptionPane.showMessageDialog(this, "Log ID not found!", "Error", JOptionPane.ERROR_MESSAGE);
+                return;
             }
 
             int confirm = JOptionPane.showConfirmDialog(this,
-                    "Are you sure you want to remove log:\n" + lines[logIndex - 1],
+                    "Are you sure you want to remove this log?\n" + logToRemove.toString(),
                     "Confirm Remove", JOptionPane.YES_NO_OPTION);
             if (confirm != JOptionPane.YES_OPTION) return;
 
-            String[] newLines = new String[lines.length - 1];
-            for (int i = 0, j = 0; i < lines.length; i++)
-                if (i != logIndex - 1) newLines[j++] = lines[i];
-
-            try (PrintWriter pw = new PrintWriter(new FileWriter(file))) {
-                for (String l : newLines) pw.println(l);
-            } catch (IOException e) { JOptionPane.showMessageDialog(this, "Error removing log."); return; }
-
-            JOptionPane.showMessageDialog(this, "Log removed successfully!");
+            if (DatabaseOperations.removeAttendanceLog(logId)) {
+                JOptionPane.showMessageDialog(this, "Log removed successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+            } else {
+                JOptionPane.showMessageDialog(this, "Error removing log!", "Error", JOptionPane.ERROR_MESSAGE);
+            }
         }
     }
 
     private void viewEmployees() {
-        File file = new File("employees.txt");
-        if (!file.exists()) {
-            JOptionPane.showMessageDialog(this, "No employees registered.");
+        List<Employee> employees = DatabaseOperations.getAllEmployees();
+        if (employees.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "No employees registered.", "Information", JOptionPane.INFORMATION_MESSAGE);
             return;
         }
-
-        String[] lines;
-        try { lines = new BufferedReader(new FileReader(file)).lines().toArray(String[]::new); }
-        catch (IOException e) { JOptionPane.showMessageDialog(this, "Error reading employees file."); return; }
 
         String[] columnNames = {"#", "Employee ID", "Full Name", "Contact", "Address", "Position"};
         DefaultTableModel model = new DefaultTableModel(columnNames, 0);
 
-        for (int i = 0; i < lines.length; i++) {
-            String[] parts = lines[i].split(",", -1);
-            Object[] row = {i + 1, parts[0], parts[1], parts[2], parts[3], parts[4]};
+        for (int i = 0; i < employees.size(); i++) {
+            Employee emp = employees.get(i);
+            Object[] row = {i + 1, emp.getEmployeeId(), emp.getFullName(), 
+                          emp.getContactNumber(), emp.getAddress(), emp.getPosition()};
             model.addRow(row);
         }
 
@@ -239,72 +294,173 @@ public class AdminDashboardFrame extends JFrame {
                 null, options, options[0]);
 
         if (choice == 1) {
-            String inputIndex = JOptionPane.showInputDialog(this, "Enter the employee number to edit:");
+            String inputIndex = ThemeManager.showLargeInputDialog(this, "Enter the employee number to edit:", "Edit Employee");
             int empIndex;
-            try { empIndex = Integer.parseInt(inputIndex); }
-            catch (NumberFormatException e) { JOptionPane.showMessageDialog(this, "Invalid number!"); return; }
+            try { 
+                empIndex = Integer.parseInt(inputIndex); 
+            } catch (NumberFormatException e) { 
+                JOptionPane.showMessageDialog(this, "Invalid number!", "Error", JOptionPane.ERROR_MESSAGE); 
+                return; 
+            }
 
-            if (empIndex < 1 || empIndex > lines.length) { JOptionPane.showMessageDialog(this, "Employee number out of range!"); return; }
+            if (empIndex < 1 || empIndex > employees.size()) { 
+                JOptionPane.showMessageDialog(this, "Employee number out of range!", "Error", JOptionPane.ERROR_MESSAGE); 
+                return; 
+            }
 
-            String[] parts = lines[empIndex - 1].split(",", -1);
-            String newEmpId = JOptionPane.showInputDialog(this, "Edit Employee ID:", parts[0]);
+            Employee emp = employees.get(empIndex - 1);
+            
+            String newEmpId = ThemeManager.showLargeInputDialog(this, "Edit Employee ID:", "Edit Employee ID");
             if (newEmpId == null) return;
-            String newName = JOptionPane.showInputDialog(this, "Edit Full Name:", parts[1]);
+            String newName = ThemeManager.showLargeInputDialog(this, "Edit Full Name:", "Edit Full Name");
             if (newName == null) return;
-            String newContact = JOptionPane.showInputDialog(this, "Edit Contact Number:", parts[2]);
+            String newContact = ThemeManager.showLargeInputDialog(this, "Edit Contact Number:", "Edit Contact Number");
             if (newContact == null) return;
-            String newAddress = JOptionPane.showInputDialog(this, "Edit Address:", parts[3]);
+            String newAddress = ThemeManager.showLargeInputDialog(this, "Edit Address:", "Edit Address");
             if (newAddress == null) return;
-            String newPosition = JOptionPane.showInputDialog(this, "Edit Position:", parts[4]);
+            String newPosition = ThemeManager.showLargeInputDialog(this, "Edit Position:", "Edit Position");
             if (newPosition == null) return;
 
-            lines[empIndex - 1] = newEmpId + "," + newName + "," + newContact + "," + newAddress + "," + newPosition;
-
-            try (PrintWriter pw = new PrintWriter(new FileWriter(file))) {
-                for (String l : lines) pw.println(l);
-            } catch (IOException e) { JOptionPane.showMessageDialog(this, "Error saving employee."); return; }
-
-            JOptionPane.showMessageDialog(this, "Employee updated successfully!");
+            if (DatabaseOperations.updateEmployee(emp.getEmployeeId(), newName, newContact, newAddress, newPosition)) {
+                JOptionPane.showMessageDialog(this, "Employee updated successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+            } else {
+                JOptionPane.showMessageDialog(this, "Error updating employee!", "Error", JOptionPane.ERROR_MESSAGE);
+            }
         }
     }
 
     private void removeEmployee() {
-        File file = new File("employees.txt");
-        if (!file.exists()) { JOptionPane.showMessageDialog(this, "No employees registered."); return; }
-
-        String[] lines;
-        try { lines = new BufferedReader(new FileReader(file)).lines().toArray(String[]::new); }
-        catch (IOException e) { JOptionPane.showMessageDialog(this, "Error reading employees file."); return; }
-
-        StringBuilder sb = new StringBuilder("Registered Employees:\n");
-        for (int i = 0; i < lines.length; i++) {
-            String[] parts = lines[i].split(",");
-            sb.append((i + 1)).append(". ").append(parts[1]).append(" (").append(parts[0]).append(")\n");
+        List<Employee> employees = DatabaseOperations.getAllEmployees();
+        if (employees.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "No employees registered.", "Information", JOptionPane.INFORMATION_MESSAGE);
+            return;
         }
 
-        String adminPass = JOptionPane.showInputDialog(this, "Enter Admin Password:");
-        if (!"admin123".equals(adminPass)) { JOptionPane.showMessageDialog(this, "Unauthorized! Incorrect password."); return; }
+        StringBuilder sb = new StringBuilder("Registered Employees:\n");
+        for (int i = 0; i < employees.size(); i++) {
+            Employee emp = employees.get(i);
+            sb.append((i + 1)).append(". ").append(emp.getFullName()).append(" (").append(emp.getEmployeeId()).append(")\n");
+        }
 
-        String inputIndex = JOptionPane.showInputDialog(this, sb.toString() + "\nEnter the employee number to remove:");
+        String adminPass = ThemeManager.showLargeInputDialog(this, "Enter Admin Password:", "Admin Password");
+        if (!"admin123".equals(adminPass)) { 
+            JOptionPane.showMessageDialog(this, "Unauthorized! Incorrect password.", "Error", JOptionPane.ERROR_MESSAGE); 
+            return; 
+        }
+
+        String inputIndex = ThemeManager.showLargeInputDialog(this, sb.toString() + "\nEnter the employee number to remove:", "Remove Employee");
         int empIndex;
-        try { empIndex = Integer.parseInt(inputIndex); }
-        catch (NumberFormatException e) { JOptionPane.showMessageDialog(this, "Invalid number!"); return; }
+        try { 
+            empIndex = Integer.parseInt(inputIndex); 
+        } catch (NumberFormatException e) { 
+            JOptionPane.showMessageDialog(this, "Invalid number!", "Error", JOptionPane.ERROR_MESSAGE); 
+            return; 
+        }
 
-        if (empIndex < 1 || empIndex > lines.length) { JOptionPane.showMessageDialog(this, "Employee number out of range!"); return; }
+        if (empIndex < 1 || empIndex > employees.size()) { 
+            JOptionPane.showMessageDialog(this, "Employee number out of range!", "Error", JOptionPane.ERROR_MESSAGE); 
+            return; 
+        }
+
+        Employee emp = employees.get(empIndex - 1);
 
         int confirm = JOptionPane.showConfirmDialog(this,
-                "Are you sure you want to remove employee:\n" + lines[empIndex - 1],
+                "Are you sure you want to remove employee:\n" + emp.toString(),
                 "Confirm Remove", JOptionPane.YES_NO_OPTION);
         if (confirm != JOptionPane.YES_OPTION) return;
 
-        String[] newLines = new String[lines.length - 1];
-        for (int i = 0, j = 0; i < lines.length; i++)
-            if (i != empIndex - 1) newLines[j++] = lines[i];
-
-        try (PrintWriter pw = new PrintWriter(new FileWriter(file))) {
-            for (String l : newLines) pw.println(l);
-        } catch (IOException e) { JOptionPane.showMessageDialog(this, "Error removing employee."); return; }
-
-        JOptionPane.showMessageDialog(this, "Employee removed successfully!");
+        if (DatabaseOperations.removeEmployee(emp.getEmployeeId())) {
+            JOptionPane.showMessageDialog(this, "Employee removed successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+        } else {
+            JOptionPane.showMessageDialog(this, "Error removing employee!", "Error", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+    
+    private void exportAttendance() {
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter("CSV Files (*.csv)", "csv"));
+        fileChooser.setSelectedFile(new java.io.File(ExcelExporter.getExportFilePath("attendance_export", "csv")));
+        
+        int result = fileChooser.showSaveDialog(this);
+        if (result == JFileChooser.APPROVE_OPTION) {
+            String filePath = fileChooser.getSelectedFile().getAbsolutePath();
+            if (!filePath.endsWith(".csv")) {
+                filePath += ".csv";
+            }
+            
+            if (DatabaseOperations.exportAttendanceToCSV(filePath)) {
+                JOptionPane.showMessageDialog(this, "Attendance data exported successfully!\nFile: " + filePath, 
+                    "Export Success", JOptionPane.INFORMATION_MESSAGE);
+            } else {
+                JOptionPane.showMessageDialog(this, "Error exporting attendance data!", "Export Error", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+    
+    private void exportEmployees() {
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter("CSV Files (*.csv)", "csv"));
+        fileChooser.setSelectedFile(new java.io.File(ExcelExporter.getExportFilePath("employees_export", "csv")));
+        
+        int result = fileChooser.showSaveDialog(this);
+        if (result == JFileChooser.APPROVE_OPTION) {
+            String filePath = fileChooser.getSelectedFile().getAbsolutePath();
+            if (!filePath.endsWith(".csv")) {
+                filePath += ".csv";
+            }
+            
+            if (DatabaseOperations.exportEmployeesToCSV(filePath)) {
+                JOptionPane.showMessageDialog(this, "Employee data exported successfully!\nFile: " + filePath, 
+                    "Export Success", JOptionPane.INFORMATION_MESSAGE);
+            } else {
+                JOptionPane.showMessageDialog(this, "Error exporting employee data!", "Export Error", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+    
+    private void generateReport() {
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter("Text Files (*.txt)", "txt"));
+        fileChooser.setSelectedFile(new java.io.File(ExcelExporter.getExportFilePath("attendance_report", "txt")));
+        
+        int result = fileChooser.showSaveDialog(this);
+        if (result == JFileChooser.APPROVE_OPTION) {
+            String filePath = fileChooser.getSelectedFile().getAbsolutePath();
+            if (!filePath.endsWith(".txt")) {
+                filePath += ".txt";
+            }
+            
+            if (DatabaseOperations.generateAttendanceReport(filePath)) {
+                JOptionPane.showMessageDialog(this, "Attendance report generated successfully!\nFile: " + filePath, 
+                    "Report Success", JOptionPane.INFORMATION_MESSAGE);
+            } else {
+                JOptionPane.showMessageDialog(this, "Error generating report!", "Report Error", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+    
+    private void viewStatistics() {
+        String stats = DatabaseOperations.getAttendanceStatistics();
+        JTextArea textArea = new JTextArea(stats);
+        textArea.setEditable(false);
+        textArea.setFont(new Font("Monospaced", Font.PLAIN, 14));
+        textArea.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        
+        JScrollPane scrollPane = new JScrollPane(textArea);
+        scrollPane.setPreferredSize(new Dimension(400, 200));
+        
+        JOptionPane.showMessageDialog(this, scrollPane, "Attendance Statistics", JOptionPane.INFORMATION_MESSAGE);
+    }
+    
+    private void logout() {
+        int confirm = JOptionPane.showConfirmDialog(this, 
+            "Are you sure you want to logout?", 
+            "Confirm Logout", 
+            JOptionPane.YES_NO_OPTION);
+            
+        if (confirm == JOptionPane.YES_OPTION) {
+            dispose(); // Close admin dashboard
+            new LoginFrame().setVisible(true); // Open login frame
+        }
     }
 }

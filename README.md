@@ -1,0 +1,182 @@
+# Barangay Attendance System
+
+A comprehensive attendance tracking system developed for barangay (local community) management with modern Java Swing interface and MySQL database backend.
+
+## Features
+
+- **Modern UI Design** with large input fields for easy data entry
+- **User Authentication** with Admin and Employee roles
+- **Employee Management** - Register, view, edit, and remove employees
+- **Attendance Tracking** - Clock IN/OUT functionality with timestamp
+- **Export Features** - Export attendance and employee data to CSV
+- **Database Management** - MySQL backend with secure connection
+- **Logout Functionality** - Secure session management
+- **Professional Theme** - Modern, clean interface design
+
+## Quick Start
+
+### Prerequisites
+- Java 8 or higher
+- MySQL Server 5.7+ or MariaDB 10.2+
+- MySQL Connector/J driver
+
+### Installation
+
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/yourusername/BarangayAttendanceSystem.git
+   cd BarangayAttendanceSystem
+   ```
+
+2. **Database Setup**
+   ```sql
+   CREATE DATABASE attendance_db;
+   mysql -u root attendance_db < database_setup.sql
+   ```
+
+3. **Build the Application**
+   ```bash
+   # Windows
+   build_jar.bat
+   
+   # Linux/Mac
+   chmod +x build_jar.sh
+   ./build_jar.sh
+   ```
+
+4. **Run the Application**
+   ```bash
+   java -jar dist/BarangayAttendanceSystem.jar
+   ```
+
+## Default Login Credentials
+
+- **Admin**: `admin@barangay.com` / `admin123`
+- **Employee**: `employee@barangay.com` / `emp123`
+
+## Project Structure
+
+```
+BarangayAttendanceSystem/
+├── src/attendance/          # Source code
+│   ├── Main.java           # Application entry point
+│   ├── LoginFrame.java     # Login interface
+│   ├── AdminDashboardFrame.java  # Admin dashboard
+│   ├── DashboardFrame.java # Employee dashboard
+│   ├── DatabaseOperations.java  # Database operations
+│   ├── DBConnection.java  # Database connection
+│   └── ...                # Other utility classes
+├── database_setup.sql      # Database schema and data
+├── build_jar.bat          # Windows build script
+├── build_jar.sh           # Linux/Mac build script
+└── README.md              # This file
+```
+
+## Usage
+
+### Admin Features
+- Register new employees
+- View and edit employee information
+- Remove employees
+- View attendance logs
+- Export data to CSV
+- Generate reports
+- View statistics
+
+### Employee Features
+- Clock IN/OUT functionality
+- View attendance history
+- Update profile information
+
+## Configuration
+
+### Database Connection
+Edit `DBConnection.java` to modify database settings:
+```java
+private static final String URL = "jdbc:mysql://localhost:3306/attendance_db";
+private static final String USER = "root";
+private static final String PASSWORD = "";
+```
+
+## 📦 Build Instructions
+
+### Important Note
+**JAR files are excluded from Git** to keep the repository clean. You need to build the JAR file locally after cloning.
+
+### Windows
+1. Ensure MySQL Connector/J is downloaded and placed in `dist/lib/` folder
+2. Run `build_jar.bat`
+3. JAR file will be created in `dist/` folder
+
+### Linux/Mac
+1. Ensure MySQL Connector/J is downloaded and placed in `dist/lib/` folder
+2. Run `chmod +x build_jar.sh` then `./build_jar.sh`
+3. JAR file will be created in `dist/` folder
+
+### After Building
+Run the application:
+```bash
+java -jar dist/BarangayAttendanceSystem.jar
+```
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Database Connection Failed**
+   - Ensure MySQL server is running
+   - Check database credentials
+   - Verify database exists
+
+2. **Class Not Found Error**
+   - Ensure MySQL Connector/J is in classpath
+   - Check JAR manifest file
+
+3. **UI Issues**
+   - Ensure Java 8+ is installed
+   - Check system display settings
+
+## UI Features
+
+- **Large Input Fields** for easy data entry
+- **Modern Theme** with professional color scheme
+- **Responsive Design** adapts to screen size
+- **Intuitive Navigation** with clear buttons
+- **Error Handling** with user-friendly messages
+
+## Reports
+
+The system supports exporting:
+- Attendance logs with timestamps
+- Employee database
+- Summary reports with statistics
+
+## Security
+
+- Password-based authentication
+- Session management with logout
+- Input validation and sanitization
+- Secure database connection
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test thoroughly
+5. Submit a pull request
+
+## License
+
+This project is for educational purposes. Feel free to use and modify for your barangay or community needs.
+
+## Support
+
+For issues and questions:
+1. Check the troubleshooting section
+2. Review the database setup
+3. Verify Java and MySQL installation
+
+---
+
+**Developed for barangay management and community service** 🏢s

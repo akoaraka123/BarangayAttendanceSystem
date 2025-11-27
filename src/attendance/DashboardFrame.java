@@ -2,13 +2,9 @@ package attendance;
 
 import javax.swing.*;
 import java.awt.*;
-import java.io.*;
-import java.time.LocalDate;
-import java.time.LocalTime;
-import java.time.format.DateTimeFormatter;
 
 public class DashboardFrame extends JFrame {
-    JButton btnScanID, btnManual;
+    JButton btnScanID, btnManual, btnLogout;
 
     public DashboardFrame() {
         setTitle("Barangay Attendance - Employee Dashboard");
@@ -16,74 +12,130 @@ public class DashboardFrame extends JFrame {
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
 
-        // ===== HEADER =====
-        JLabel headerLabel = new JLabel("Barangay Attendance System", SwingConstants.CENTER);
-        headerLabel.setFont(new Font("Segoe UI", Font.BOLD, 36));
-        headerLabel.setBorder(BorderFactory.createEmptyBorder(40, 10, 40, 10));
+        // ====== Header ======
+        JPanel headerPanel = ThemeManager.createHeaderPanel();
+        headerPanel.setPreferredSize(new Dimension(800, 100));
+        headerPanel.setLayout(new BorderLayout());
+        
+        JLabel headerLabel = new JLabel("🏢 Employee Dashboard", SwingConstants.CENTER);
+        ThemeManager.styleHeaderLabel(headerLabel);
+        headerPanel.add(headerLabel, BorderLayout.CENTER);
+        
+        // Logout button on the right
+        btnLogout = new JButton("🚪 Logout");
+        ThemeManager.styleDangerButton(btnLogout);
+        btnLogout.setPreferredSize(new Dimension(120, 40));
+        JPanel logoutPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        logoutPanel.setOpaque(false);
+        logoutPanel.add(btnLogout);
+        headerPanel.add(logoutPanel, BorderLayout.EAST);
 
-        // ===== BUTTON PANEL =====
-        JPanel panel = new JPanel(new GridLayout(2, 1, 40, 40));
-        panel.setBorder(BorderFactory.createEmptyBorder(50, 400, 100, 400));
+        // ====== Button Panel ======
+        JPanel panel = ThemeManager.createModernPanel();
+        panel.setLayout(new GridLayout(2, 1, 30, 30));
+        panel.setBorder(BorderFactory.createEmptyBorder(100, 350, 100, 350));
 
-        btnScanID = new JButton("📷  Scan ID");
-        btnManual = new JButton("✍️  Manual Entry");
+        btnScanID = new JButton("📷 Scan Employee ID");
+        btnManual = new JButton("✍️ Manual Entry");
 
-        Dimension buttonSize = new Dimension(400, 90);
-        Font buttonFont = new Font("Segoe UI", Font.BOLD, 28);
-
-        btnScanID.setFont(buttonFont);
-        btnManual.setFont(buttonFont);
+        Dimension buttonSize = new Dimension(450, 100);
+        
+        // Style buttons
+        ThemeManager.styleSuccessButton(btnScanID);
+        ThemeManager.styleButton(btnManual);
+        
         btnScanID.setPreferredSize(buttonSize);
         btnManual.setPreferredSize(buttonSize);
-        btnScanID.setFocusPainted(false);
-        btnManual.setFocusPainted(false);
 
         panel.add(btnScanID);
         panel.add(btnManual);
 
         setLayout(new BorderLayout());
-        add(headerLabel, BorderLayout.NORTH);
+        add(headerPanel, BorderLayout.NORTH);
         add(panel, BorderLayout.CENTER);
 
         btnScanID.addActionListener(e -> scanEmployeeID());
         btnManual.addActionListener(e -> manualEntry());
+        btnLogout.addActionListener(e -> logout());
     }
 
     private void scanEmployeeID() {
-        String empId = JOptionPane.showInputDialog(this, "Enter/Scan Employee ID:");
-        if (empId == null || empId.trim().isEmpty()) return;
+        String empId;
+        
+        // Employee ID validation
+        while (true) {
+            empId = ThemeManager.showLargeInputDialog(this, "Enter/Scan Employee ID (e.g., EMP001):", "Employee ID");
+            if (empId == null) return;
+            
+            String error = InputValidator.getEmpIdErrorMessage(empId);
+            if (error.isEmpty()) {
+                empId = empId.trim().toUpperCase();
+                break;
+            }
+            JOptionPane.showMessageDialog(this, error, "Validation Error", JOptionPane.ERROR_MESSAGE);
+        }
 
-        String name = getEmployeeName(empId);
+        String name = DatabaseOperations.getEmployeeName(empId);
         if (name == null) {
-            JOptionPane.showMessageDialog(this, "❌ Employee not registered!", "Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Employee not found!", "Error", JOptionPane.ERROR_MESSAGE);
             return;
         }
 
-        // ✅ Check for today's log
-        String todayAction = getTodayAction(empId, name);
+        String action = DatabaseOperations.getTodayAction(empId, name);
+        String message;
+        String buttonText;
 
-        if (todayAction.equals("BOTH_DONE")) {
-            JOptionPane.showMessageDialog(this, "❌ Employee already has Clock IN and Clock OUT today!", "Error", JOptionPane.ERROR_MESSAGE);
+        if (action.equals("NO_CLOCKIN")) {
+            message = "Good morning, " + name + "!\nReady to Clock IN?";
+            buttonText = "🕐 Clock IN";
+        } else if (action.equals("CAN_CLOCKOUT")) {
+            message = "Good day, " + name + "!\nReady to Clock OUT?";
+            buttonText = "🕕 Clock OUT";
+        } else {
+            JOptionPane.showMessageDialog(this, "You have already completed both Clock IN and OUT today!", "Info", JOptionPane.INFORMATION_MESSAGE);
             return;
         }
 
-        if (todayAction.equals("NO_CLOCKIN") || todayAction.equals("CAN_CLOCKIN")) {
-            saveLog(name, empId, "Clock IN");
-            JOptionPane.showMessageDialog(this, "Employee " + name + " (" + empId + ") Clock IN recorded!");
-        } else if (todayAction.equals("CAN_CLOCKOUT")) {
-            saveLog(name, empId, "Clock OUT");
-            JOptionPane.showMessageDialog(this, "Employee " + name + " (" + empId + ") Clock OUT recorded!");
+        int choice = JOptionPane.showConfirmDialog(this, message, "Confirm Action", JOptionPane.YES_NO_OPTION);
+        if (choice == JOptionPane.YES_OPTION) {
+            if (DatabaseOperations.saveAttendanceLog(empId, name, buttonText.contains("IN") ? "Clock IN" : "Clock OUT")) {
+                JOptionPane.showMessageDialog(this, buttonText + " recorded successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+            } else {
+                JOptionPane.showMessageDialog(this, "Error recording attendance!", "Error", JOptionPane.ERROR_MESSAGE);
+            }
         }
     }
 
     private void manualEntry() {
-        String empId = JOptionPane.showInputDialog(this, "Enter Employee ID:");
-        if (empId == null || empId.trim().isEmpty()) return;
+        String empId, name;
+        
+        // Employee ID validation
+        while (true) {
+            empId = ThemeManager.showLargeInputDialog(this, "Enter Employee ID (e.g., EMP001):", "Employee ID");
+            if (empId == null) return;
+            
+            String error = InputValidator.getEmpIdErrorMessage(empId);
+            if (error.isEmpty()) {
+                empId = empId.trim().toUpperCase();
+                break;
+            }
+            JOptionPane.showMessageDialog(this, error, "Validation Error", JOptionPane.ERROR_MESSAGE);
+        }
 
-        String name = JOptionPane.showInputDialog(this, "Enter Employee Name:");
-        if (name == null || name.trim().isEmpty()) return;
+        // Name validation
+        while (true) {
+            name = ThemeManager.showLargeInputDialog(this, "Enter Employee Name:", "Employee Name");
+            if (name == null) return;
+            
+            String error = InputValidator.getNameErrorMessage(name);
+            if (error.isEmpty()) {
+                name = InputValidator.capitalizeName(name);
+                break;
+            }
+            JOptionPane.showMessageDialog(this, error, "Validation Error", JOptionPane.ERROR_MESSAGE);
+        }
 
-        if (!isEmployeeRegistered(empId, name)) {
+        if (!DatabaseOperations.isEmployeeRegistered(empId, name)) {
             JOptionPane.showMessageDialog(this,
                     "❌ Employee not registered!\nPlease register first before logging attendance.",
                     "Error",
@@ -91,7 +143,7 @@ public class DashboardFrame extends JFrame {
             return;
         }
 
-        String todayAction = getTodayAction(empId, name);
+        String todayAction = DatabaseOperations.getTodayAction(empId, name);
         String[] options = null;
 
         switch (todayAction) {
@@ -115,106 +167,24 @@ public class DashboardFrame extends JFrame {
         );
 
         if (choice >= 0) {
-            saveLog(name, empId, options[choice]);
-            JOptionPane.showMessageDialog(this, name + " " + options[choice] + " recorded!");
+            String action = options[choice];
+            if (DatabaseOperations.saveAttendanceLog(empId, name, action)) {
+                JOptionPane.showMessageDialog(this, name + " " + action + " recorded!", "Success", JOptionPane.INFORMATION_MESSAGE);
+            } else {
+                JOptionPane.showMessageDialog(this, "Error saving attendance record!", "Error", JOptionPane.ERROR_MESSAGE);
+            }
         }
     }
-
-    private boolean isEmployeeRegistered(String empId, String name) {
-        try (BufferedReader br = new BufferedReader(new FileReader("employees.txt"))) {
-            String line;
-            while ((line = br.readLine()) != null) {
-                String[] parts = line.split(",");
-                if (parts.length >= 2) {
-                    if (parts[0].trim().equals(empId.trim()) && parts[1].trim().equalsIgnoreCase(name.trim())) {
-                        return true;
-                    }
-                }
-            }
-        } catch (IOException e) {
-            JOptionPane.showMessageDialog(this, "Error reading employees file: " + e.getMessage());
+    
+    private void logout() {
+        int confirm = JOptionPane.showConfirmDialog(this, 
+            "Are you sure you want to logout?", 
+            "Confirm Logout", 
+            JOptionPane.YES_NO_OPTION);
+            
+        if (confirm == JOptionPane.YES_OPTION) {
+            dispose(); // Close employee dashboard
+            new LoginFrame().setVisible(true); // Open login frame
         }
-        return false;
-    }
-
-    // ✅ Returns status of employee today
-    private String getTodayAction(String empId, String name) {
-        String today = LocalDate.now().toString();
-        boolean hasClockIn = false;
-        boolean hasClockOut = false;
-
-        try (BufferedReader br = new BufferedReader(new FileReader("attendance_logs.txt"))) {
-            String line;
-            while ((line = br.readLine()) != null) {
-                String[] parts = line.split(",");
-                if (parts.length >= 6 && parts[0].equals(name) && parts[1].equals(empId) && parts[4].equals(today)) {
-                    hasClockIn = !parts[2].isEmpty();
-                    hasClockOut = !parts[3].isEmpty();
-                }
-            }
-        } catch (IOException ignored) {}
-
-        if (!hasClockIn) return "NO_CLOCKIN";
-        if (hasClockIn && !hasClockOut) return "CAN_CLOCKOUT";
-        return "BOTH_DONE";
-    }
-
-    private void saveLog(String name, String empId, String action) {
-        String date = LocalDate.now().toString();
-        String time = LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss"));
-
-        String timeIn = "";
-        String timeOut = "";
-
-        File file = new File("attendance_logs.txt");
-        StringBuilder allLogs = new StringBuilder();
-        boolean foundToday = false;
-
-        try {
-            if (file.exists()) {
-                BufferedReader br = new BufferedReader(new FileReader(file));
-                String line;
-                while ((line = br.readLine()) != null) {
-                    String[] parts = line.split(",");
-                    if (parts.length >= 6 && parts[0].equals(name) && parts[1].equals(empId) && parts[4].equals(date)) {
-                        foundToday = true;
-                        timeIn = parts[2];
-                        timeOut = parts[3];
-                        if (action.equals("Clock IN")) timeIn = time;
-                        else if (action.equals("Clock OUT")) timeOut = time;
-                        line = name + "," + empId + "," + timeIn + "," + timeOut + "," + date + "," + time;
-                    }
-                    allLogs.append(line).append("\n");
-                }
-                br.close();
-            }
-        } catch (IOException e) {
-            JOptionPane.showMessageDialog(this, "Error reading logs: " + e.getMessage());
-            return;
-        }
-
-        if (!foundToday) {
-            allLogs.append(name).append(",").append(empId).append(",");
-            allLogs.append(action.equals("Clock IN") ? time : "").append(",");
-            allLogs.append(action.equals("Clock OUT") ? time : "").append(",");
-            allLogs.append(date).append(",").append(time).append("\n");
-        }
-
-        try (PrintWriter pw = new PrintWriter(new FileWriter(file))) {
-            pw.print(allLogs.toString());
-        } catch (IOException e) {
-            JOptionPane.showMessageDialog(this, "Error saving log: " + e.getMessage());
-        }
-    }
-
-    private String getEmployeeName(String empId) {
-        try (BufferedReader br = new BufferedReader(new FileReader("employees.txt"))) {
-            String line;
-            while ((line = br.readLine()) != null) {
-                String[] parts = line.split(",");
-                if (parts.length >= 2 && parts[0].equals(empId)) return parts[1];
-            }
-        } catch (IOException ignored) {}
-        return null;
     }
 }

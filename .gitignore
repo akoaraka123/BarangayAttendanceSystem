@@ -8,3 +8,18 @@ Thumbs.db
 /.idea/
 /.vscode/
 *~
+
+# Exclude JAR files from Git
+*.jar
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Temporary files
+*.tmp
+*.temp
+
+# Log files
+*.txt
