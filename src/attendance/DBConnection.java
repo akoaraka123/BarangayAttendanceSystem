@@ -11,14 +11,34 @@ public class DBConnection {
     private static final String PASSWORD = "";
     
     // Load MySQL driver with better error handling
+    // Try multiple methods for compatibility with different JAR packaging
     static {
         try {
+            // Method 1: Try Class.forName (works for regular JARs)
             Class.forName("com.mysql.cj.jdbc.Driver");
             System.out.println("MySQL Driver Loaded!");
         } catch (ClassNotFoundException e) {
-            System.err.println("MySQL Driver not found: " + e.getMessage());
-            System.err.println("Make sure MySQL Connector/J is included in the classpath!");
-            System.err.println("For JAR deployment, include mysql-connector-j-8.x.x.jar");
+            try {
+                // Method 2: Try loading via ServiceLoader (works for fat JARs)
+                java.util.ServiceLoader<java.sql.Driver> drivers = 
+                    java.util.ServiceLoader.load(java.sql.Driver.class);
+                boolean driverFound = false;
+                for (java.sql.Driver driver : drivers) {
+                    if (driver.getClass().getName().equals("com.mysql.cj.jdbc.Driver")) {
+                        driverFound = true;
+                        break;
+                    }
+                }
+                if (driverFound) {
+                    System.out.println("MySQL Driver Loaded via ServiceLoader!");
+                } else {
+                    throw new ClassNotFoundException("MySQL Driver not found via ServiceLoader");
+                }
+            } catch (Exception e2) {
+                System.err.println("MySQL Driver not found: " + e.getMessage());
+                System.err.println("Make sure MySQL Connector/J is included in the classpath!");
+                System.err.println("For JAR deployment, use the FAT JAR (build_fat_jar.bat)");
+            }
         }
     }
     

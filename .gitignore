@@ -1,30 +1,36 @@
 # Build outputs
 /build/
-/nbproject/private/
+/build/**
 *.class
 
 # JAR files - users must build locally
 *.jar
+BarangayAttendanceSystem.jar
+BarangayAttendanceSystem-FAT.jar
 
-# Keep dist/lib folder structure but ignore contents
-/dist/*
-!/dist/lib/
-/dist/lib/*
+# Distribution folder - ignore JAR but keep structure
+/dist/*.jar
+/dist/README.TXT
+
+# MySQL Connector - users must download separately
+/dist/lib/mysql-connector-j-*.jar
+
+# IDE private files
+/nbproject/private/
+/.idea/
+/.vscode/
+*.iml
 
 # Temporary build files
 /temp_build/
 /deploy/
 temp_manifest.mf
 
-# IDE files
-/.idea/
-/.vscode/
-*.iml
-
 # OS files
 .DS_Store
 Thumbs.db
 *~
+desktop.ini
 
 # Log files
 *.log
@@ -34,8 +40,16 @@ Thumbs.db
 *.sqlite
 *.sqlite3
 
-# Keep these files (not ignored)
+# Keep these files (not ignored):
 # - README.md
+# - README-DEPLOYMENT.md
 # - database_setup.sql
+# - database_migration_rfid.sql
+# - build_jar.bat
 # - build_fat_jar.bat
+# - RUN-FAT-JAR.bat
+# - cleanup.bat
+# - manifest.mf
+# - build.xml
+# - nbproject/ (except private/)
 # - src/**
