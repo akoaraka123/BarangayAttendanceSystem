@@ -18,14 +18,22 @@ public class DatabaseOperations {
     
     // ===== USER OPERATIONS =====
     public static boolean authenticateUser(String email, String password) {
-        System.out.println("DEBUG: Attempting login for email: " + email);
+        System.out.println("DEBUG: Attempting login for username/email: " + email);
         System.out.println("DEBUG: Password length: " + password.length());
+        
+        // Map usernames to database emails
+        String dbEmail = email;
+        if (email.equalsIgnoreCase("admin")) {
+            dbEmail = "admin@barangay.com";
+        } else if (email.equalsIgnoreCase("employee")) {
+            dbEmail = "employee@barangay.com";
+        }
         
         String sql = "SELECT password, role FROM users WHERE email = ?";
         try (Connection conn = DBConnection.getConnection();
              PreparedStatement pst = conn.prepareStatement(sql)) {
             
-            pst.setString(1, email);
+            pst.setString(1, dbEmail);
             ResultSet rs = pst.executeQuery();
             
             if (rs.next()) {
@@ -118,11 +126,19 @@ public class DatabaseOperations {
     }
     
     public static String getUserRole(String email) {
+        // Map usernames to database emails
+        String dbEmail = email;
+        if (email.equalsIgnoreCase("admin")) {
+            dbEmail = "admin@barangay.com";
+        } else if (email.equalsIgnoreCase("employee")) {
+            dbEmail = "employee@barangay.com";
+        }
+        
         String sql = "SELECT role FROM users WHERE email = ?";
         try (Connection conn = DBConnection.getConnection();
              PreparedStatement pst = conn.prepareStatement(sql)) {
             
-            pst.setString(1, email);
+            pst.setString(1, dbEmail);
             ResultSet rs = pst.executeQuery();
             if (rs.next()) {
                 return rs.getString("role");

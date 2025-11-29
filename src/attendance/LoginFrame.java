@@ -37,9 +37,9 @@ public class LoginFrame extends JFrame {
         gbc.anchor = GridBagConstraints.WEST;
         gbc.fill = GridBagConstraints.HORIZONTAL;
 
-        // Email
+        // Username/Email
         gbc.gridx = 0; gbc.gridy = 0;
-        JLabel lblEmail = new JLabel("Email:");
+        JLabel lblEmail = new JLabel("Username:");
         ThemeManager.styleLabel(lblEmail);
         formPanel.add(lblEmail, gbc);
 
@@ -132,12 +132,13 @@ public class LoginFrame extends JFrame {
 
         // Input validation
         if (email.isEmpty()) {
-            JOptionPane.showMessageDialog(this, "Please enter your email address!", "Validation Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this, "Please enter your username!", "Validation Error", JOptionPane.ERROR_MESSAGE);
             txtEmail.requestFocus();
             return;
         }
         
-        if (!InputValidator.isValidEmail(email)) {
+        // Allow "admin" and "employee" as usernames, otherwise validate as email
+        if (!email.equalsIgnoreCase("admin") && !email.equalsIgnoreCase("employee") && !InputValidator.isValidEmail(email)) {
             JOptionPane.showMessageDialog(this, InputValidator.getEmailErrorMessage(email), "Validation Error", JOptionPane.ERROR_MESSAGE);
             txtEmail.requestFocus();
             txtEmail.selectAll();
@@ -192,7 +193,7 @@ public class LoginFrame extends JFrame {
                         }
                         dispose();
                     } else {
-                        JOptionPane.showMessageDialog(LoginFrame.this, "Invalid email or password!", "Error", JOptionPane.ERROR_MESSAGE);
+                        JOptionPane.showMessageDialog(LoginFrame.this, "Invalid username or password!", "Error", JOptionPane.ERROR_MESSAGE);
                         txtPassword.setText("");
                         txtPassword.requestFocus();
                     }

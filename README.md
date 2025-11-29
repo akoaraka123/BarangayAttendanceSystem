@@ -58,8 +58,8 @@ A comprehensive attendance tracking system developed for barangay (local communi
 
 ## Default Login Credentials
 
-- **Admin**: `admin@barangay.com` / `admin123`
-- **Employee**: `employee@barangay.com` / `emp123`
+- **Admin**: `admin` / `admin123`
+- **Employee**: `employee` / `employee123`
 
 ## Project Structure
 

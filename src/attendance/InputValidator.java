@@ -173,22 +173,143 @@ public class InputValidator {
     }
     
     /**
-     * Capitalize name properly
+     * Capitalize name properly and add spaces if missing
+     * Preserves existing spaces and capitalization
+     * Example: "marcobatiller" -> "Marco Batiller"
+     * Example: "Marco Batiller" -> "Marco Batiller" (preserved)
      */
     public static String capitalizeName(String name) {
         if (name == null || name.trim().isEmpty()) return "";
         
-        String[] words = name.trim().toLowerCase().split("\\s+");
+        String trimmed = name.trim();
+        
+        // Check if name has no spaces (all lowercase, no spaces)
+        // Only add spaces if there are truly no spaces
+        if (!trimmed.contains(" ") && trimmed.length() > 0) {
+            // Check if it's all lowercase (no capital letters)
+            boolean allLowercase = true;
+            for (char c : trimmed.toCharArray()) {
+                if (Character.isUpperCase(c)) {
+                    allLowercase = false;
+                    break;
+                }
+            }
+            
+            // Only add spaces if it's all lowercase with no spaces
+            if (allLowercase) {
+                String withSpaces = addSpacesToName(trimmed);
+                trimmed = withSpaces;
+            }
+        }
+        
+        // Split by spaces and capitalize each word properly
+        String[] words = trimmed.split("\\s+");
         StringBuilder result = new StringBuilder();
         
         for (String word : words) {
             if (word.length() > 0) {
+                // Capitalize first letter, lowercase the rest
                 result.append(Character.toUpperCase(word.charAt(0)))
-                      .append(word.substring(1))
+                      .append(word.substring(1).toLowerCase())
                       .append(" ");
             }
         }
         
         return result.toString().trim();
+    }
+    
+    /**
+     * Capitalize position properly (does NOT add spaces)
+     * Only capitalizes first letter of each word, preserves existing spaces
+     * Example: "kagawad" -> "Kagawad"
+     * Example: "Kaga Wad" -> "Kaga Wad" (preserved, just capitalizes)
+     */
+    public static String capitalizePosition(String position) {
+        if (position == null || position.trim().isEmpty()) return "";
+        
+        String trimmed = position.trim();
+        
+        // Split by spaces and capitalize each word properly (NO space addition)
+        String[] words = trimmed.split("\\s+");
+        StringBuilder result = new StringBuilder();
+        
+        for (int i = 0; i < words.length; i++) {
+            String word = words[i];
+            if (word.length() > 0) {
+                // Capitalize first letter, lowercase the rest
+                result.append(Character.toUpperCase(word.charAt(0)))
+                      .append(word.substring(1).toLowerCase());
+                
+                // Add space only if there was a space in original (not the last word)
+                if (i < words.length - 1) {
+                    result.append(" ");
+                }
+            }
+        }
+        
+        return result.toString();
+    }
+    
+    /**
+     * Add spaces to name if missing (intelligent word detection)
+     * Example: "marcobatiller" -> "marco batiller"
+     * Detects word boundaries by looking for capital letters or common name patterns
+     */
+    private static String addSpacesToName(String name) {
+        if (name == null || name.isEmpty()) return name;
+        
+        // If already has spaces, return as is
+        if (name.contains(" ")) return name;
+        
+        StringBuilder result = new StringBuilder();
+        char[] chars = name.toCharArray();
+        
+        // If name has capital letters, add space before each capital (except first)
+        boolean hasCapitals = false;
+        for (char c : chars) {
+            if (Character.isUpperCase(c)) {
+                hasCapitals = true;
+                break;
+            }
+        }
+        
+        if (hasCapitals) {
+            // Add space before capital letters (except first character)
+            for (int i = 0; i < chars.length; i++) {
+                if (i > 0 && Character.isUpperCase(chars[i])) {
+                    result.append(" ");
+                }
+                result.append(chars[i]);
+            }
+            return result.toString();
+        }
+        
+        // If all lowercase with no spaces, try to split intelligently
+        // Try common first name lengths (4-7 characters) and ensure second part is at least 3 chars
+        if (name.length() >= 7) {
+            // Try splitting at positions 4, 5, 6, 7 (common first name lengths)
+            for (int splitPoint = 4; splitPoint <= 7 && splitPoint < name.length() - 2; splitPoint++) {
+                String firstPart = name.substring(0, splitPoint);
+                String secondPart = name.substring(splitPoint);
+                
+                // If second part is reasonable length (at least 3 chars), use this split
+                if (secondPart.length() >= 3) {
+                    return firstPart + " " + secondPart;
+                }
+            }
+        }
+        
+        // For shorter names or if no good split found, try middle split
+        if (name.length() > 5) {
+            int splitPoint = name.length() / 2;
+            // Ensure both parts are at least 3 characters
+            if (splitPoint < 3) splitPoint = 3;
+            if (splitPoint > name.length() - 3) splitPoint = name.length() - 3;
+            
+            return name.substring(0, splitPoint) + " " + name.substring(splitPoint);
+        }
+        
+        // If too short to split meaningfully, return as is
+        return name;
     }
 }

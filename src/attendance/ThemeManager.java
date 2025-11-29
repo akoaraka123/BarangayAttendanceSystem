@@ -240,31 +240,164 @@ public class ThemeManager {
     }
     
     /**
-     * Show a large input dialog
+     * Show a large input dialog with proper text wrapping
      */
     public static String showLargeInputDialog(Component parent, String message, String title) {
-        JPanel panel = new JPanel(new BorderLayout());
-        panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        // Create custom dialog for better control
+        JDialog dialog = new JDialog((JFrame) SwingUtilities.getWindowAncestor(parent), title, true);
+        dialog.setLayout(new BorderLayout());
+        dialog.setSize(700, 320);
+        dialog.setLocationRelativeTo(parent);
         
-        JLabel label = new JLabel("<html><div style='font-size: 18px; margin-bottom: 10px;'>" + message + "</div></html>");
-        label.setFont(new Font("Segoe UI", Font.PLAIN, 18));
+        JPanel mainPanel = new JPanel(new BorderLayout());
+        mainPanel.setBorder(BorderFactory.createEmptyBorder(25, 25, 25, 25));
+        mainPanel.setBackground(BACKGROUND_COLOR);
+        
+        // Message label with proper wrapping - use HTML for word wrapping
+        JLabel label = new JLabel("<html><div style='font-size: 20px; margin-bottom: 15px; width: 650px;'>" + 
+                                 message.replace("\n", "<br>") + "</div></html>");
+        label.setFont(new Font("Segoe UI", Font.PLAIN, 20));
         label.setForeground(TEXT_COLOR);
+        label.setVerticalAlignment(SwingConstants.TOP);
         
         JTextField textField = new JTextField();
-        ThemeManager.styleTextField(textField);
-        textField.setPreferredSize(new Dimension(400, 50));
+        textField.setFont(new Font("Segoe UI", Font.PLAIN, 20));
+        // Increase height significantly to ensure text is fully visible
+        textField.setPreferredSize(new Dimension(650, 90));
+        textField.setMinimumSize(new Dimension(650, 90));
+        textField.setMaximumSize(new Dimension(650, 90));
+        // Use border with adequate padding to ensure text visibility
+        textField.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new Color(200, 200, 200), 2),
+            BorderFactory.createEmptyBorder(25, 20, 25, 20)
+        ));
+        textField.setOpaque(true);
+        textField.setBackground(Color.WHITE);
+        // Ensure text is fully visible - use LEFT alignment
+        textField.setHorizontalAlignment(JTextField.LEFT);
         
-        panel.add(label, BorderLayout.NORTH);
-        panel.add(textField, BorderLayout.CENTER);
+        mainPanel.add(label, BorderLayout.NORTH);
+        mainPanel.add(textField, BorderLayout.CENTER);
         
-        int result = JOptionPane.showConfirmDialog(
-            parent, 
-            panel, 
-            title, 
-            JOptionPane.OK_CANCEL_OPTION, 
-            JOptionPane.PLAIN_MESSAGE
-        );
+        // Button panel
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        buttonPanel.setBackground(BACKGROUND_COLOR);
+        buttonPanel.setBorder(BorderFactory.createEmptyBorder(15, 0, 0, 0));
         
-        return result == JOptionPane.OK_OPTION ? textField.getText().trim() : null;
+        JButton okButton = new JButton("OK");
+        JButton cancelButton = new JButton("Cancel");
+        ThemeManager.styleButton(okButton);
+        ThemeManager.styleButton(cancelButton);
+        okButton.setPreferredSize(new Dimension(120, 40));
+        cancelButton.setPreferredSize(new Dimension(120, 40));
+        
+        final String[] result = {null};
+        
+        okButton.addActionListener(e -> {
+            result[0] = textField.getText().trim();
+            dialog.dispose();
+        });
+        
+        cancelButton.addActionListener(e -> {
+            result[0] = null;
+            dialog.dispose();
+        });
+        
+        // Enter key to submit
+        textField.addActionListener(e -> {
+            result[0] = textField.getText().trim();
+            dialog.dispose();
+        });
+        
+        buttonPanel.add(okButton);
+        buttonPanel.add(cancelButton);
+        mainPanel.add(buttonPanel, BorderLayout.SOUTH);
+        
+        dialog.add(mainPanel);
+        textField.requestFocus();
+        dialog.setVisible(true);
+        
+        return result[0];
+    }
+    
+    /**
+     * Show a password input dialog (password is hidden) with proper text wrapping
+     */
+    public static String showPasswordDialog(Component parent, String message, String title) {
+        // Create custom dialog for better control
+        JDialog dialog = new JDialog((JFrame) SwingUtilities.getWindowAncestor(parent), title, true);
+        dialog.setLayout(new BorderLayout());
+        dialog.setSize(700, 320);
+        dialog.setLocationRelativeTo(parent);
+        
+        JPanel mainPanel = new JPanel(new BorderLayout());
+        mainPanel.setBorder(BorderFactory.createEmptyBorder(25, 25, 25, 25));
+        mainPanel.setBackground(BACKGROUND_COLOR);
+        
+        // Message label with proper wrapping - use HTML for word wrapping
+        JLabel label = new JLabel("<html><div style='font-size: 20px; margin-bottom: 15px; width: 650px;'>" + 
+                                 message.replace("\n", "<br>") + "</div></html>");
+        label.setFont(new Font("Segoe UI", Font.PLAIN, 20));
+        label.setForeground(TEXT_COLOR);
+        label.setVerticalAlignment(SwingConstants.TOP);
+        
+        JPasswordField passwordField = new JPasswordField();
+        passwordField.setFont(new Font("Segoe UI", Font.PLAIN, 20));
+        // Increase height significantly to ensure text is fully visible
+        passwordField.setPreferredSize(new Dimension(650, 90));
+        passwordField.setMinimumSize(new Dimension(650, 90));
+        passwordField.setMaximumSize(new Dimension(650, 90));
+        // Use border with adequate padding to ensure text visibility
+        passwordField.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new Color(200, 200, 200), 2),
+            BorderFactory.createEmptyBorder(25, 20, 25, 20)
+        ));
+        passwordField.setOpaque(true);
+        passwordField.setBackground(Color.WHITE);
+        // Ensure text is fully visible
+        passwordField.setHorizontalAlignment(JPasswordField.LEFT);
+        
+        mainPanel.add(label, BorderLayout.NORTH);
+        mainPanel.add(passwordField, BorderLayout.CENTER);
+        
+        // Button panel
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
+        buttonPanel.setBackground(BACKGROUND_COLOR);
+        buttonPanel.setBorder(BorderFactory.createEmptyBorder(15, 0, 0, 0));
+        
+        JButton okButton = new JButton("OK");
+        JButton cancelButton = new JButton("Cancel");
+        ThemeManager.styleButton(okButton);
+        ThemeManager.styleButton(cancelButton);
+        okButton.setPreferredSize(new Dimension(120, 40));
+        cancelButton.setPreferredSize(new Dimension(120, 40));
+        
+        final String[] result = {null};
+        
+        okButton.addActionListener(e -> {
+            result[0] = new String(passwordField.getPassword()).trim();
+            dialog.dispose();
+        });
+        
+        cancelButton.addActionListener(e -> {
+            result[0] = null;
+            dialog.dispose();
+        });
+        
+        // Enter key to submit
+        passwordField.addActionListener(e -> {
+            result[0] = new String(passwordField.getPassword()).trim();
+            dialog.dispose();
+        });
+        
+        buttonPanel.add(okButton);
+        buttonPanel.add(cancelButton);
+        mainPanel.add(buttonPanel, BorderLayout.SOUTH);
+        
+        dialog.add(mainPanel);
+        passwordField.requestFocus();
+        dialog.setVisible(true);
+        
+        return result[0];
     }
 }
