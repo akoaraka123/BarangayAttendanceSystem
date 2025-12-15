@@ -3,6 +3,8 @@ package attendance;
 import javax.swing.*;
 import javax.swing.table.*;
 import java.awt.*;
+import java.awt.AlphaComposite;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -12,7 +14,7 @@ import java.util.Map;
 
 public class AdminDashboardFrame extends JFrame {
     private JButton btnRegister, btnViewLogs, btnViewEmployees, btnRemove, btnChangePassword;
-    private JButton btnExportAttendance, btnExportEmployees, btnGenerateReport, btnViewStatistics, btnLogout;
+    private JButton btnExportAttendance, btnExportEmployees, btnGenerateReport, btnViewStatistics, btnDTR, btnLogout;
 
     public AdminDashboardFrame() {
         setTitle("Admin Dashboard");
@@ -22,11 +24,14 @@ public class AdminDashboardFrame extends JFrame {
 
         // ====== Header ======
         JPanel headerPanel = ThemeManager.createHeaderPanel();
-        headerPanel.setPreferredSize(new Dimension(800, 100));
+        headerPanel.setPreferredSize(new Dimension(800, 120));
         headerPanel.setLayout(new BorderLayout());
         
-        JLabel headerLabel = new JLabel("🏢 Admin Dashboard", SwingConstants.CENTER);
-        ThemeManager.styleHeaderLabel(headerLabel);
+        // Welcome text in the header (large, full screen size)
+        JLabel headerLabel = new JLabel("Welcome to Admin Dashboard");
+        headerLabel.setFont(new Font("Segoe UI", Font.BOLD, 48)); // Large font size
+        headerLabel.setForeground(Color.WHITE);
+        headerLabel.setHorizontalAlignment(SwingConstants.CENTER);
         headerPanel.add(headerLabel, BorderLayout.CENTER);
         
         // Logout button on the right
@@ -38,10 +43,19 @@ public class AdminDashboardFrame extends JFrame {
         logoutPanel.add(btnLogout);
         headerPanel.add(logoutPanel, BorderLayout.EAST);
 
-        // ====== Button Panel ======
-        JPanel panel = ThemeManager.createModernPanel();
-        panel.setLayout(new GridLayout(4, 2, 20, 20));
-        panel.setBorder(BorderFactory.createEmptyBorder(50, 300, 100, 300));
+        // ====== Sidebar Panel ======
+        JPanel sidebarPanel = new JPanel();
+        sidebarPanel.setLayout(new BoxLayout(sidebarPanel, BoxLayout.Y_AXIS));
+        sidebarPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        sidebarPanel.setBackground(new Color(245, 245, 250));
+        sidebarPanel.setPreferredSize(new Dimension(280, 0));
+        
+        // Add title to sidebar
+        JLabel sidebarTitle = new JLabel("📋 Menu");
+        sidebarTitle.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        sidebarTitle.setBorder(BorderFactory.createEmptyBorder(0, 0, 20, 0));
+        sidebarPanel.add(sidebarTitle);
+        sidebarPanel.add(Box.createVerticalStrut(10));
 
         btnRegister = new JButton("👤 Register Employee");
         btnViewLogs = new JButton("📋 View Attendance Logs");
@@ -52,8 +66,9 @@ public class AdminDashboardFrame extends JFrame {
         btnExportEmployees = new JButton("📇 Export Employees (CSV)");
         btnGenerateReport = new JButton("📄 Generate Report");
         btnViewStatistics = new JButton("📈 View Statistics");
+        btnDTR = new JButton("📋 DTR (Daily Time Record)");
 
-        Dimension buttonSize = new Dimension(350, 70);
+        Dimension buttonSize = new Dimension(240, 60);
         
         // Style buttons with different colors
         ThemeManager.styleButton(btnRegister);
@@ -65,19 +80,145 @@ public class AdminDashboardFrame extends JFrame {
         ThemeManager.styleSuccessButton(btnExportEmployees);
         ThemeManager.styleButton(btnGenerateReport);
         ThemeManager.styleButton(btnViewStatistics);
+        ThemeManager.styleButton(btnDTR);
         
         JButton[] buttons = {btnRegister, btnViewLogs, btnViewEmployees, btnRemove, 
                             btnChangePassword, btnExportAttendance, btnExportEmployees, 
-                            btnGenerateReport, btnViewStatistics};
+                            btnGenerateReport, btnViewStatistics, btnDTR};
         
         for (JButton b : buttons) {
             b.setPreferredSize(buttonSize);
-            panel.add(b);
+            b.setMaximumSize(new Dimension(240, 60));
+            b.setAlignmentX(Component.LEFT_ALIGNMENT);
+            sidebarPanel.add(b);
+            sidebarPanel.add(Box.createVerticalStrut(10));
         }
+        
+        // Add flexible space at the bottom
+        sidebarPanel.add(Box.createVerticalGlue());
+
+        // ====== Main Content Area with Logo Background ======
+        JPanel contentPanel = new JPanel() {
+            private Image logoImage;
+            
+            {
+                // Try to load logo image - check multiple possible filenames
+                String[] possibleFilenames = {
+                    "brgy logo.jpg",
+                    "brgy logo.png",
+                    "barangay_logo.png",
+                    "barangay_logo.jpg",
+                    "logo.png",
+                    "logo.jpg"
+                };
+                
+                try {
+                    // Try loading from resources folder (project root)
+                    java.io.File logoFile = null;
+                    for (String filename : possibleFilenames) {
+                        logoFile = new java.io.File("resources/" + filename);
+                        if (logoFile.exists()) {
+                            logoImage = javax.imageio.ImageIO.read(logoFile);
+                            System.out.println("Logo loaded: " + logoFile.getAbsolutePath());
+                            break;
+                        }
+                    }
+                    
+                    // If not found, try src/resources
+                    if (logoImage == null) {
+                        for (String filename : possibleFilenames) {
+                            logoFile = new java.io.File("src/resources/" + filename);
+                            if (logoFile.exists()) {
+                                logoImage = javax.imageio.ImageIO.read(logoFile);
+                                System.out.println("Logo loaded: " + logoFile.getAbsolutePath());
+                                break;
+                            }
+                        }
+                    }
+                    
+                    // Try loading from classpath resources
+                    if (logoImage == null) {
+                        for (String filename : possibleFilenames) {
+                            java.net.URL imageUrl = getClass().getResource("/resources/" + filename);
+                            if (imageUrl != null) {
+                                logoImage = javax.imageio.ImageIO.read(imageUrl);
+                                System.out.println("Logo loaded from classpath: " + filename);
+                                break;
+                            }
+                        }
+                    }
+                    
+                    if (logoImage == null) {
+                        System.out.println("Logo image not found. Using default background.");
+                    }
+                } catch (Exception e) {
+                    System.out.println("Error loading logo image: " + e.getMessage());
+                    logoImage = null;
+                }
+            }
+            
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                
+                if (logoImage != null) {
+                    Graphics2D g2d = (Graphics2D) g.create();
+                    
+                    // Get panel dimensions
+                    int panelWidth = getWidth();
+                    int panelHeight = getHeight();
+                    
+                    // Calculate logo size (make it full screen - very large)
+                    int logoWidth = logoImage.getWidth(this);
+                    int logoHeight = logoImage.getHeight(this);
+                    
+                    // Scale logo to be almost full screen (about 90% of panel width/height, maintain aspect ratio)
+                    double scale = Math.min((panelWidth * 0.9) / logoWidth, (panelHeight * 0.85) / logoHeight);
+                    int scaledWidth = (int) (logoWidth * scale);
+                    int scaledHeight = (int) (logoHeight * scale);
+                    
+                    // Position logo at the center
+                    int x = (panelWidth - scaledWidth) / 2;
+                    int y = (panelHeight - scaledHeight) / 2;
+                    
+                    // Set composite for transparency (gray effect)
+                    // AlphaComposite with 0.15 opacity makes it very subtle
+                    g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.15f));
+                    
+                    // Convert to grayscale for gray effect
+                    java.awt.image.BufferedImage grayImage = new java.awt.image.BufferedImage(
+                        scaledWidth, scaledHeight, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+                    Graphics2D grayG2d = grayImage.createGraphics();
+                    grayG2d.drawImage(logoImage, 0, 0, scaledWidth, scaledHeight, null);
+                    grayG2d.dispose();
+                    
+                    // Apply grayscale filter
+                    for (int i = 0; i < scaledWidth; i++) {
+                        for (int j = 0; j < scaledHeight; j++) {
+                            int rgb = grayImage.getRGB(i, j);
+                            int red = (rgb >> 16) & 0xFF;
+                            int green = (rgb >> 8) & 0xFF;
+                            int blue = rgb & 0xFF;
+                            // Convert to grayscale
+                            int gray = (int) (0.299 * red + 0.587 * green + 0.114 * blue);
+                            int grayRgb = (rgb & 0xFF000000) | (gray << 16) | (gray << 8) | gray;
+                            grayImage.setRGB(i, j, grayRgb);
+                        }
+                    }
+                    
+                    // Draw the gray, transparent logo
+                    g2d.drawImage(grayImage, x, y, null);
+                    g2d.dispose();
+                }
+            }
+        };
+        contentPanel.setLayout(new BorderLayout());
+        contentPanel.setBackground(new Color(250, 250, 250)); // Light gray background
 
         setLayout(new BorderLayout());
         add(headerPanel, BorderLayout.NORTH);
-        add(panel, BorderLayout.CENTER);
+        add(sidebarPanel, BorderLayout.WEST);
+        add(contentPanel, BorderLayout.CENTER);
 
         btnRegister.addActionListener(e -> registerEmployee());
         btnViewLogs.addActionListener(e -> viewLogs());
@@ -88,6 +229,7 @@ public class AdminDashboardFrame extends JFrame {
         btnExportEmployees.addActionListener(e -> exportEmployees());
         btnGenerateReport.addActionListener(e -> generateReport());
         btnViewStatistics.addActionListener(e -> viewStatistics());
+        btnDTR.addActionListener(e -> generateDTR());
         btnLogout.addActionListener(e -> logout());
     }
 
@@ -262,25 +404,28 @@ public class AdminDashboardFrame extends JFrame {
             return;
         }
 
-        String[] columnNames = {"ID", "Name", "Employee ID", "Clock IN", "Clock OUT", "Date", "Hours Worked"};
-        Object[][] data = new Object[logs.size()][7];
+        String[] columnNames = {"ID", "Name", "Employee ID", "Morning IN", "Morning OUT", 
+                                "Afternoon IN", "Afternoon OUT", "Date", "Hours Worked"};
+        Object[][] data = new Object[logs.size()][9];
 
         for (int i = 0; i < logs.size(); i++) {
             AttendanceLog log = logs.get(i);
             data[i][0] = log.getId();
             data[i][1] = log.getEmployeeName();
             data[i][2] = log.getEmployeeId();
-            data[i][3] = log.getFormattedClockIn();
-            data[i][4] = log.getFormattedClockOut();
-            data[i][5] = log.getFormattedDate();
-            data[i][6] = log.getHoursWorked();
+            data[i][3] = log.getFormattedMorningClockIn();
+            data[i][4] = log.getFormattedMorningClockOut();
+            data[i][5] = log.getFormattedAfternoonClockIn();
+            data[i][6] = log.getFormattedAfternoonClockOut();
+            data[i][7] = log.getFormattedDate();
+            data[i][8] = log.getHoursWorked();
         }
 
         JTable table = new JTable(data, columnNames) {
             @Override
             public Component prepareRenderer(TableCellRenderer renderer, int row, int col) {
                 Component c = super.prepareRenderer(renderer, row, col);
-                String hoursText = (String) getValueAt(row, 6);
+                String hoursText = (String) getValueAt(row, 8);
                 if (hoursText != null && !hoursText.isEmpty() && hoursText.contains("h")) {
                     try { 
                         int h = Integer.parseInt(hoursText.split("h")[0].trim());
@@ -305,10 +450,12 @@ public class AdminDashboardFrame extends JFrame {
         columnModel.getColumn(0).setPreferredWidth(60);   // ID
         columnModel.getColumn(1).setPreferredWidth(200);  // Name
         columnModel.getColumn(2).setPreferredWidth(120); // Employee ID
-        columnModel.getColumn(3).setPreferredWidth(120);  // Clock IN
-        columnModel.getColumn(4).setPreferredWidth(120);  // Clock OUT
-        columnModel.getColumn(5).setPreferredWidth(120);  // Date
-        columnModel.getColumn(6).setPreferredWidth(120);  // Hours Worked
+        columnModel.getColumn(3).setPreferredWidth(110);  // Morning IN
+        columnModel.getColumn(4).setPreferredWidth(110);  // Morning OUT
+        columnModel.getColumn(5).setPreferredWidth(110);  // Afternoon IN
+        columnModel.getColumn(6).setPreferredWidth(110);  // Afternoon OUT
+        columnModel.getColumn(7).setPreferredWidth(120);  // Date
+        columnModel.getColumn(8).setPreferredWidth(120);  // Hours Worked
 
         JScrollPane scrollPane = new JScrollPane(table);
         // Make it full view - use most of the screen
@@ -1461,9 +1608,15 @@ public class AdminDashboardFrame extends JFrame {
                                          empNameNoSpaces.contains(inputNoSpaces);
                     
                     if (matchesInput) {
-                        String clockIn = log.getClockIn() != null ? log.getFormattedClockIn() : "N/A";
-                        String clockOut = log.getClockOut() != null ? log.getFormattedClockOut() : "N/A";
-                        matches.add("Log #" + logIdStr + " - " + empName + " (" + empId + ") - " + dateStr + " [" + clockIn + " - " + clockOut + "]");
+                        String morningIn = log.getFormattedMorningClockIn();
+                        String morningOut = log.getFormattedMorningClockOut();
+                        String afternoonIn = log.getFormattedAfternoonClockIn();
+                        String afternoonOut = log.getFormattedAfternoonClockOut();
+                        String timeStr = "Morn: " + (morningIn.isEmpty() ? "N/A" : morningIn) + "-" + 
+                                       (morningOut.isEmpty() ? "N/A" : morningOut) + 
+                                       " | Aft: " + (afternoonIn.isEmpty() ? "N/A" : afternoonIn) + "-" + 
+                                       (afternoonOut.isEmpty() ? "N/A" : afternoonOut);
+                        matches.add("Log #" + logIdStr + " - " + empName + " (" + empId + ") - " + dateStr + " [" + timeStr + "]");
                     }
                 }
                 
@@ -1705,7 +1858,8 @@ public class AdminDashboardFrame extends JFrame {
             java.util.Set<String> uniqueEmployees = new java.util.HashSet<>();
             
             for (AttendanceLog log : logs) {
-                if (log.getClockIn() != null) {
+                // Check if has any attendance (morning or afternoon)
+                if (log.getMorningClockIn() != null || log.getAfternoonClockIn() != null) {
                     uniqueEmployees.add(log.getEmployeeId());
                     
                     String hours = log.getHoursWorked();
@@ -1733,21 +1887,23 @@ public class AdminDashboardFrame extends JFrame {
             // Detailed records
             writer.println("DETAILED ATTENDANCE RECORDS:");
             writer.println("----------------------------");
-            writer.printf("%-12s %-12s %-20s %-10s %-10s %-10s%n", 
-                "Date", "Employee ID", "Name", "Clock In", "Clock Out", "Hours");
-            writer.printf("%-12s %-12s %-20s %-10s %-10s %-10s%n", 
-                "----", "-----------", "----", "--------", "--------", "-----");
+            writer.printf("%-12s %-12s %-20s %-10s %-10s %-10s %-10s %-10s%n", 
+                "Date", "Employee ID", "Name", "Morn IN", "Morn OUT", "Aft IN", "Aft OUT", "Hours");
+            writer.printf("%-12s %-12s %-20s %-10s %-10s %-10s %-10s %-10s%n", 
+                "----", "-----------", "----", "--------", "--------", "--------", "--------", "-----");
             
             for (AttendanceLog log : logs) {
                 String date = dateFormat.format(log.getLogDate());
                 String empId = log.getEmployeeId();
                 String empName = log.getEmployeeName();
-                String clockIn = log.getClockIn() != null ? log.getFormattedClockIn() : "";
-                String clockOut = log.getClockOut() != null ? log.getFormattedClockOut() : "";
+                String morningIn = log.getFormattedMorningClockIn();
+                String morningOut = log.getFormattedMorningClockOut();
+                String afternoonIn = log.getFormattedAfternoonClockIn();
+                String afternoonOut = log.getFormattedAfternoonClockOut();
                 String hoursWorked = log.getHoursWorked();
                 
-                writer.printf("%-12s %-12s %-20s %-10s %-10s %-10s%n", 
-                    date, empId, empName, clockIn, clockOut, hoursWorked);
+                writer.printf("%-12s %-12s %-20s %-10s %-10s %-10s %-10s %-10s%n", 
+                    date, empId, empName, morningIn, morningOut, afternoonIn, afternoonOut, hoursWorked);
             }
             
             writer.println();
@@ -1799,10 +1955,10 @@ public class AdminDashboardFrame extends JFrame {
         reportText.append("Total Hours Worked: ").append(String.format("%.1f", totalHours)).append("\n\n");
         
         // Table header
-        reportText.append(String.format("%-12s %-12s %-20s %-10s %-10s %-10s%n", 
-            "Date", "Employee ID", "Name", "Clock In", "Clock Out", "Hours"));
-        reportText.append(String.format("%-12s %-12s %-20s %-10s %-10s %-10s%n", 
-            "----", "-----------", "----", "--------", "--------", "-----"));
+        reportText.append(String.format("%-12s %-12s %-20s %-10s %-10s %-10s %-10s %-10s%n", 
+            "Date", "Employee ID", "Name", "Morn IN", "Morn OUT", "Aft IN", "Aft OUT", "Hours"));
+        reportText.append(String.format("%-12s %-12s %-20s %-10s %-10s %-10s %-10s %-10s%n", 
+            "----", "-----------", "----", "--------", "--------", "--------", "--------", "-----"));
         
         // Table data
         java.text.SimpleDateFormat dateFormat = new java.text.SimpleDateFormat("yyyy-MM-dd");
@@ -1810,12 +1966,14 @@ public class AdminDashboardFrame extends JFrame {
             String date = dateFormat.format(log.getLogDate());
             String empId = log.getEmployeeId();
             String empName = log.getEmployeeName();
-            String clockIn = log.getClockIn() != null ? log.getFormattedClockIn() : "";
-            String clockOut = log.getClockOut() != null ? log.getFormattedClockOut() : "";
+            String morningIn = log.getFormattedMorningClockIn();
+            String morningOut = log.getFormattedMorningClockOut();
+            String afternoonIn = log.getFormattedAfternoonClockIn();
+            String afternoonOut = log.getFormattedAfternoonClockOut();
             String hoursWorked = log.getHoursWorked();
             
-            reportText.append(String.format("%-12s %-12s %-20s %-10s %-10s %-10s%n", 
-                date, empId, empName, clockIn, clockOut, hoursWorked));
+            reportText.append(String.format("%-12s %-12s %-20s %-10s %-10s %-10s %-10s %-10s%n", 
+                date, empId, empName, morningIn, morningOut, afternoonIn, afternoonOut, hoursWorked));
         }
         
         // Display in custom dialog with Generate Report button
@@ -2282,10 +2440,17 @@ public class AdminDashboardFrame extends JFrame {
             
             if (stats != null) {
                 stats.totalRecords++;
-                if (log.getClockIn() != null) {
+                // Count morning and afternoon clock ins/outs
+                if (log.getMorningClockIn() != null) {
                     stats.totalClockIns++;
                 }
-                if (log.getClockOut() != null) {
+                if (log.getAfternoonClockIn() != null) {
+                    stats.totalClockIns++;
+                }
+                if (log.getMorningClockOut() != null) {
+                    stats.totalClockOuts++;
+                }
+                if (log.getAfternoonClockOut() != null) {
                     stats.totalClockOuts++;
                 }
             }
@@ -2328,6 +2493,84 @@ public class AdminDashboardFrame extends JFrame {
     }
     
     /**
+     * Generate DTR (Daily Time Record) for an employee
+     */
+    private void generateDTR() {
+        // Get all employees for search
+        List<Employee> employees = DatabaseOperations.getAllEmployees();
+        if (employees.isEmpty()) {
+            JOptionPane.showMessageDialog(this, 
+                "No employees found. Please register employees first.", 
+                "No Employees", 
+                JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        
+        // Create search dialog
+        String[] employeeNames = new String[employees.size()];
+        for (int i = 0; i < employees.size(); i++) {
+            employeeNames[i] = employees.get(i).getFullName() + " (" + employees.get(i).getEmployeeId() + ")";
+        }
+        
+        String selectedEmployee = (String) JOptionPane.showInputDialog(
+            this,
+            "Select employee for DTR:",
+            "Generate DTR",
+            JOptionPane.QUESTION_MESSAGE,
+            null,
+            employeeNames,
+            employeeNames[0]
+        );
+        
+        if (selectedEmployee == null) {
+            return; // User cancelled
+        }
+        
+        // Extract employee ID from selection
+        String employeeId = selectedEmployee.substring(selectedEmployee.indexOf("(") + 1, selectedEmployee.indexOf(")"));
+        String employeeName = selectedEmployee.substring(0, selectedEmployee.indexOf("(")).trim();
+        
+        // Get current month and year
+        LocalDate now = LocalDate.now();
+        int currentYear = now.getYear();
+        int currentMonth = now.getMonthValue();
+        
+        // Create month/year selection dialog
+        JPanel monthYearPanel = new JPanel(new GridLayout(2, 2, 10, 10));
+        monthYearPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        
+        JLabel yearLabel = new JLabel("Year:");
+        JSpinner yearSpinner = new JSpinner(new SpinnerNumberModel(currentYear, 2020, 2100, 1));
+        
+        JLabel monthLabel = new JLabel("Month:");
+        String[] months = {"January", "February", "March", "April", "May", "June",
+                          "July", "August", "September", "October", "November", "December"};
+        JComboBox<String> monthCombo = new JComboBox<>(months);
+        monthCombo.setSelectedIndex(currentMonth - 1);
+        
+        monthYearPanel.add(yearLabel);
+        monthYearPanel.add(yearSpinner);
+        monthYearPanel.add(monthLabel);
+        monthYearPanel.add(monthCombo);
+        
+        int result = JOptionPane.showConfirmDialog(
+            this,
+            monthYearPanel,
+            "Select Month and Year for DTR",
+            JOptionPane.OK_CANCEL_OPTION,
+            JOptionPane.QUESTION_MESSAGE
+        );
+        
+        if (result == JOptionPane.OK_OPTION) {
+            int selectedYear = (Integer) yearSpinner.getValue();
+            int selectedMonth = monthCombo.getSelectedIndex() + 1;
+            
+            // Generate DTR
+            DTRGenerator.generateDTR(employeeId, employeeName, selectedYear, selectedMonth);
+        }
+    }
+    
+    /**
      * Helper class to store employee statistics
      */
     private static class EmployeeStats {
@@ -2365,10 +2608,17 @@ public class AdminDashboardFrame extends JFrame {
         Set<String> uniqueDates = new HashSet<>();
         
         for (AttendanceLog log : logs) {
-            if (log.getClockIn() != null) {
+            // Count morning and afternoon clock ins/outs
+            if (log.getMorningClockIn() != null) {
                 totalClockIns++;
             }
-            if (log.getClockOut() != null) {
+            if (log.getAfternoonClockIn() != null) {
+                totalClockIns++;
+            }
+            if (log.getMorningClockOut() != null) {
+                totalClockOuts++;
+            }
+            if (log.getAfternoonClockOut() != null) {
                 totalClockOuts++;
             }
             
@@ -2408,12 +2658,19 @@ public class AdminDashboardFrame extends JFrame {
             AttendanceLog log = logs.get(i);
             java.text.SimpleDateFormat dateFormat = new java.text.SimpleDateFormat("yyyy-MM-dd");
             String date = dateFormat.format(log.getLogDate());
-            String clockIn = log.getClockIn() != null ? log.getFormattedClockIn() : "N/A";
-            String clockOut = log.getClockOut() != null ? log.getFormattedClockOut() : "N/A";
+            String morningIn = log.getFormattedMorningClockIn();
+            String morningOut = log.getFormattedMorningClockOut();
+            String afternoonIn = log.getFormattedAfternoonClockIn();
+            String afternoonOut = log.getFormattedAfternoonClockOut();
             String hours = log.getHoursWorked();
             
-            stats.append(String.format("%s | In: %s | Out: %s | Hours: %s\n", 
-                date, clockIn, clockOut, hours.isEmpty() ? "N/A" : hours));
+            stats.append(String.format("%s | Morn: %s-%s | Aft: %s-%s | Hours: %s\n", 
+                date, 
+                morningIn.isEmpty() ? "N/A" : morningIn, 
+                morningOut.isEmpty() ? "N/A" : morningOut,
+                afternoonIn.isEmpty() ? "N/A" : afternoonIn,
+                afternoonOut.isEmpty() ? "N/A" : afternoonOut,
+                hours.isEmpty() ? "N/A" : hours));
         }
         
         return stats.toString();

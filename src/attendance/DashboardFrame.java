@@ -237,15 +237,32 @@ public class DashboardFrame extends JFrame {
         String message;
         String buttonText;
 
-        if (action.equals("NO_CLOCKIN")) {
-            message = "Good morning, " + name + "!\nReady to Clock IN?";
-            buttonText = "🕐 Clock IN";
-        } else if (action.equals("CAN_CLOCKOUT")) {
-            message = "Good day, " + name + "!\nReady to Clock OUT?";
-            buttonText = "🕕 Clock OUT";
+        if (action.equals("MORNING_IN")) {
+            message = "Good morning, " + name + "!\nReady to Clock IN for morning?";
+            buttonText = "🌅 Morning Clock IN";
+        } else if (action.equals("MORNING_OUT")) {
+            message = "Good day, " + name + "!\nReady to Clock OUT for morning?";
+            buttonText = "🌅 Morning Clock OUT";
+        } else if (action.equals("AFTERNOON_IN")) {
+            message = "Good afternoon, " + name + "!\nReady to Clock IN for afternoon?";
+            buttonText = "🌆 Afternoon Clock IN";
+        } else if (action.equals("AFTERNOON_OUT")) {
+            message = "Good day, " + name + "!\nReady to Clock OUT for afternoon?";
+            buttonText = "🌆 Afternoon Clock OUT";
+        } else if (action.equals("WAIT_FOR_BREAK")) {
+            JOptionPane.showMessageDialog(this, 
+                "⏰ " + name + "\n\n" +
+                "Morning attendance completed.\n" +
+                "Please wait for break time (12:00 PM - 1:00 PM)\n" +
+                "before clocking in for afternoon.",
+                "Break Time", 
+                JOptionPane.INFORMATION_MESSAGE);
+            return;
         } else {
             JOptionPane.showMessageDialog(this, 
-                "You have already completed both Clock IN and OUT today!", 
+                "You have already completed all attendance for today!\n\n" +
+                "🌅 Morning: IN & OUT\n" +
+                "🌆 Afternoon: IN & OUT", 
                 "Info", 
                 JOptionPane.INFORMATION_MESSAGE);
             return;
@@ -275,23 +292,55 @@ public class DashboardFrame extends JFrame {
         String actionType;
         String successMessage;
 
-        if (action.equals("NO_CLOCKIN")) {
+        if (action.equals("MORNING_IN")) {
+            actionType = "Clock IN";
+            successMessage = "✅ Morning Clock IN recorded!\n\n" +
+                           "👤 Employee: " + name + "\n" +
+                           "🌅 Morning IN: " + java.time.LocalTime.now().toString().substring(0, 5) + "\n\n" +
+                           "💡 Next: Clock OUT at 12:00 PM";
+        } else if (action.equals("MORNING_OUT")) {
+            actionType = "Clock OUT";
+            successMessage = "✅ Morning Clock OUT recorded!\n\n" +
+                           "👤 Employee: " + name + "\n" +
+                           "🌅 Morning OUT: " + java.time.LocalTime.now().toString().substring(0, 5) + "\n\n" +
+                           "💡 Break time: 12:00 PM - 1:00 PM\n" +
+                           "💡 Next: Clock IN for afternoon at 1:00 PM";
+        } else if (action.equals("AFTERNOON_IN")) {
+            actionType = "Clock IN";
+            successMessage = "✅ Afternoon Clock IN recorded!\n\n" +
+                           "👤 Employee: " + name + "\n" +
+                           "🌆 Afternoon IN: " + java.time.LocalTime.now().toString().substring(0, 5) + "\n\n" +
+                           "💡 Next: Clock OUT at 5:00 PM";
+        } else if (action.equals("AFTERNOON_OUT")) {
+            actionType = "Clock OUT";
+            successMessage = "✅ Afternoon Clock OUT recorded!\n\n" +
+                           "👤 Employee: " + name + "\n" +
+                           "🌆 Afternoon OUT: " + java.time.LocalTime.now().toString().substring(0, 5) + "\n\n" +
+                           "🎉 All attendance completed for today!";
+        } else if (action.equals("WAIT_FOR_BREAK")) {
+            JOptionPane.showMessageDialog(this, 
+                "⏰ " + name + "\n\n" +
+                "Morning attendance completed.\n" +
+                "Please wait for break time (12:00 PM - 1:00 PM)\n" +
+                "before clocking in for afternoon.",
+                "Break Time", 
+                JOptionPane.INFORMATION_MESSAGE);
+            return;
+        } else if (action.equals("ALL_DONE")) {
+            JOptionPane.showMessageDialog(this, 
+                "✅ " + name + "\n\n" +
+                "You have already completed all attendance for today!\n\n" +
+                "🌅 Morning: IN & OUT\n" +
+                "🌆 Afternoon: IN & OUT",
+                "Attendance Already Recorded", 
+                JOptionPane.INFORMATION_MESSAGE);
+            return;
+        } else {
+            // Fallback for unknown status
             actionType = "Clock IN";
             successMessage = "✅ Clock IN recorded!\n\n" +
                            "👤 Employee: " + name + "\n" +
                            "🕐 Time: " + java.time.LocalTime.now().toString().substring(0, 5);
-        } else if (action.equals("CAN_CLOCKOUT")) {
-            actionType = "Clock OUT";
-            successMessage = "✅ Clock OUT recorded!\n\n" +
-                           "👤 Employee: " + name + "\n" +
-                           "🕕 Time: " + java.time.LocalTime.now().toString().substring(0, 5);
-        } else {
-            JOptionPane.showMessageDialog(this, 
-                "⚠️ " + name + "\n\n" +
-                "You have already completed both Clock IN and OUT today!",
-                "Attendance Already Recorded", 
-                JOptionPane.INFORMATION_MESSAGE);
-            return;
         }
 
         // Save attendance automatically

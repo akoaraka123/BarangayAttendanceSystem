@@ -37,8 +37,12 @@ CREATE TABLE attendance_logs (
     id INT AUTO_INCREMENT PRIMARY KEY,
     employee_id VARCHAR(20) NOT NULL,
     employee_name VARCHAR(100) NOT NULL,
-    clock_in TIME,
-    clock_out TIME,
+    clock_in TIME,  -- Legacy column (kept for backward compatibility)
+    clock_out TIME,  -- Legacy column (kept for backward compatibility)
+    morning_clock_in TIME,
+    morning_clock_out TIME,
+    afternoon_clock_in TIME,
+    afternoon_clock_out TIME,
     log_date DATE NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (employee_id) REFERENCES employees(employee_id),

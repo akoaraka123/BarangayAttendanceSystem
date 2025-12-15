@@ -339,25 +339,43 @@ public class DatabaseOperations {
     
     public static List<Employee> getAllEmployees() {
         List<Employee> employees = new ArrayList<>();
+        // Use SELECT * and check columns dynamically
         String sql = "SELECT * FROM employees ORDER BY full_name";
         
         try (Connection conn = DBConnection.getConnection();
              PreparedStatement pst = conn.prepareStatement(sql);
              ResultSet rs = pst.executeQuery()) {
             
+            // Check if rfid_card_id column exists using ResultSetMetaData
+            ResultSetMetaData metaData = rs.getMetaData();
+            boolean hasRfidColumn = false;
+            int columnCount = metaData.getColumnCount();
+            for (int i = 1; i <= columnCount; i++) {
+                if ("rfid_card_id".equalsIgnoreCase(metaData.getColumnName(i))) {
+                    hasRfidColumn = true;
+                    break;
+                }
+            }
+            
             while (rs.next()) {
+                String rfidCardId = null;
+                if (hasRfidColumn) {
+                    rfidCardId = rs.getString("rfid_card_id");
+                }
+                
                 Employee emp = new Employee(
                     rs.getString("employee_id"),
                     rs.getString("full_name"),
                     rs.getString("contact_number"),
                     rs.getString("address"),
                     rs.getString("position"),
-                    rs.getString("rfid_card_id")
+                    rfidCardId
                 );
                 employees.add(emp);
             }
         } catch (SQLException e) {
             System.err.println("Error getting employees: " + e.getMessage());
+            e.printStackTrace(); // Print full stack trace for debugging
         }
         return employees;
     }
@@ -423,7 +441,9 @@ public class DatabaseOperations {
     // ===== ATTENDANCE OPERATIONS =====
     public static String getTodayAction(String empId, String name) {
         String today = LocalDate.now().toString();
-        String sql = "SELECT clock_in, clock_out FROM attendance_logs WHERE employee_id = ? AND log_date = ?";
+        LocalTime currentTime = LocalTime.now();
+        String sql = "SELECT morning_clock_in, morning_clock_out, afternoon_clock_in, afternoon_clock_out " +
+                     "FROM attendance_logs WHERE employee_id = ? AND log_date = ?";
         
         try (Connection conn = DBConnection.getConnection();
              PreparedStatement pst = conn.prepareStatement(sql)) {
@@ -433,57 +453,124 @@ public class DatabaseOperations {
             ResultSet rs = pst.executeQuery();
             
             if (rs.next()) {
-                Time clockIn = rs.getTime("clock_in");
-                Time clockOut = rs.getTime("clock_out");
+                Time morningIn = rs.getTime("morning_clock_in");
+                Time morningOut = rs.getTime("morning_clock_out");
+                Time afternoonIn = rs.getTime("afternoon_clock_in");
+                Time afternoonOut = rs.getTime("afternoon_clock_out");
                 
-                if (clockIn == null) return "NO_CLOCKIN";
-                if (clockIn != null && clockOut == null) return "CAN_CLOCKOUT";
-                if (clockIn != null && clockOut != null) return "BOTH_DONE";
+                // Check morning attendance
+                if (morningIn == null) {
+                    return "MORNING_IN";  // Need to clock in for morning
+                }
+                if (morningIn != null && morningOut == null) {
+                    return "MORNING_OUT";  // Need to clock out for morning
+                }
+                
+                // Check afternoon attendance (after 12pm)
+                if (morningOut != null && afternoonIn == null) {
+                    // Check if it's after 12pm (break time is 12pm-1pm)
+                    if (currentTime.isAfter(LocalTime.of(12, 0))) {
+                        return "AFTERNOON_IN";  // Need to clock in for afternoon
+                    } else {
+                        return "WAIT_FOR_BREAK";  // Still in morning, wait for break time
+                    }
+                }
+                if (afternoonIn != null && afternoonOut == null) {
+                    return "AFTERNOON_OUT";  // Need to clock out for afternoon
+                }
+                
+                // All attendance completed
+                if (morningIn != null && morningOut != null && afternoonIn != null && afternoonOut != null) {
+                    return "ALL_DONE";
+                }
             }
         } catch (SQLException e) {
             System.err.println("Error checking today's action: " + e.getMessage());
         }
-        return "NO_CLOCKIN";
+        return "MORNING_IN";  // No record for today, start with morning IN
     }
     
     public static boolean saveAttendanceLog(String empId, String name, String action) {
         String today = LocalDate.now().toString();
         LocalTime now = LocalTime.now();
         
+        // Determine which attendance period based on current action status
+        String currentStatus = getTodayAction(empId, name);
+        
         try (Connection conn = DBConnection.getConnection()) {
             // Check if log exists for today
-            String checkSql = "SELECT id FROM attendance_logs WHERE employee_id = ? AND log_date = ?";
+            String checkSql = "SELECT id, morning_clock_in, morning_clock_out, afternoon_clock_in, afternoon_clock_out " +
+                             "FROM attendance_logs WHERE employee_id = ? AND log_date = ?";
             PreparedStatement checkPst = conn.prepareStatement(checkSql);
             checkPst.setString(1, empId);
             checkPst.setString(2, today);
             ResultSet rs = checkPst.executeQuery();
             
             if (rs.next()) {
-                // Update existing log
-                String updateSql;
-                if (action.equals("Clock IN")) {
-                    updateSql = "UPDATE attendance_logs SET clock_in = ? WHERE employee_id = ? AND log_date = ?";
+                // Update existing log based on current status
+                String updateSql = "";
+                Time timeValue = Time.valueOf(now);
+                
+                if (currentStatus.equals("MORNING_IN")) {
+                    updateSql = "UPDATE attendance_logs SET morning_clock_in = ? WHERE employee_id = ? AND log_date = ?";
+                } else if (currentStatus.equals("MORNING_OUT")) {
+                    updateSql = "UPDATE attendance_logs SET morning_clock_out = ? WHERE employee_id = ? AND log_date = ?";
+                } else if (currentStatus.equals("AFTERNOON_IN")) {
+                    updateSql = "UPDATE attendance_logs SET afternoon_clock_in = ? WHERE employee_id = ? AND log_date = ?";
+                } else if (currentStatus.equals("AFTERNOON_OUT")) {
+                    updateSql = "UPDATE attendance_logs SET afternoon_clock_out = ? WHERE employee_id = ? AND log_date = ?";
                 } else {
-                    updateSql = "UPDATE attendance_logs SET clock_out = ? WHERE employee_id = ? AND log_date = ?";
+                    // Invalid status - shouldn't happen
+                    return false;
                 }
                 
                 PreparedStatement updatePst = conn.prepareStatement(updateSql);
-                updatePst.setTime(1, Time.valueOf(now));
+                updatePst.setTime(1, timeValue);
                 updatePst.setString(2, empId);
                 updatePst.setString(3, today);
                 
                 int result = updatePst.executeUpdate();
                 return result > 0;
             } else {
-                // Insert new log
-                String insertSql = "INSERT INTO attendance_logs (employee_id, employee_name, clock_in, clock_out, log_date) VALUES (?, ?, ?, ?, ?)";
+                // Insert new log - determine which field to set based on action
+                String insertSql = "INSERT INTO attendance_logs (employee_id, employee_name, " +
+                                  "morning_clock_in, morning_clock_out, afternoon_clock_in, afternoon_clock_out, log_date) " +
+                                  "VALUES (?, ?, ?, ?, ?, ?, ?)";
                 PreparedStatement insertPst = conn.prepareStatement(insertSql);
                 
                 insertPst.setString(1, empId);
                 insertPst.setString(2, name);
-                insertPst.setTime(3, action.equals("Clock IN") ? Time.valueOf(now) : null);
-                insertPst.setTime(4, action.equals("Clock OUT") ? Time.valueOf(now) : null);
-                insertPst.setString(5, today);
+                
+                // Set the appropriate field based on current status
+                if (currentStatus.equals("MORNING_IN")) {
+                    insertPst.setTime(3, Time.valueOf(now));  // morning_clock_in
+                    insertPst.setTime(4, null);
+                    insertPst.setTime(5, null);
+                    insertPst.setTime(6, null);
+                } else if (currentStatus.equals("MORNING_OUT")) {
+                    insertPst.setTime(3, null);
+                    insertPst.setTime(4, Time.valueOf(now));  // morning_clock_out
+                    insertPst.setTime(5, null);
+                    insertPst.setTime(6, null);
+                } else if (currentStatus.equals("AFTERNOON_IN")) {
+                    insertPst.setTime(3, null);
+                    insertPst.setTime(4, null);
+                    insertPst.setTime(5, Time.valueOf(now));  // afternoon_clock_in
+                    insertPst.setTime(6, null);
+                } else if (currentStatus.equals("AFTERNOON_OUT")) {
+                    insertPst.setTime(3, null);
+                    insertPst.setTime(4, null);
+                    insertPst.setTime(5, null);
+                    insertPst.setTime(6, Time.valueOf(now));  // afternoon_clock_out
+                } else {
+                    // Default to morning IN
+                    insertPst.setTime(3, Time.valueOf(now));
+                    insertPst.setTime(4, null);
+                    insertPst.setTime(5, null);
+                    insertPst.setTime(6, null);
+                }
+                
+                insertPst.setString(7, today);
                 
                 int result = insertPst.executeUpdate();
                 return result > 0;
@@ -496,7 +583,10 @@ public class DatabaseOperations {
     
     public static List<AttendanceLog> getAllAttendanceLogs() {
         List<AttendanceLog> logs = new ArrayList<>();
-        String sql = "SELECT * FROM attendance_logs ORDER BY log_date DESC, employee_name";
+        String sql = "SELECT id, employee_id, employee_name, " +
+                     "morning_clock_in, morning_clock_out, " +
+                     "afternoon_clock_in, afternoon_clock_out, " +
+                     "log_date FROM attendance_logs ORDER BY log_date DESC, employee_name";
         
         try (Connection conn = DBConnection.getConnection();
              PreparedStatement pst = conn.prepareStatement(sql);
@@ -507,8 +597,10 @@ public class DatabaseOperations {
                     rs.getInt("id"),
                     rs.getString("employee_id"),
                     rs.getString("employee_name"),
-                    rs.getTime("clock_in"),
-                    rs.getTime("clock_out"),
+                    rs.getTime("morning_clock_in"),
+                    rs.getTime("morning_clock_out"),
+                    rs.getTime("afternoon_clock_in"),
+                    rs.getTime("afternoon_clock_out"),
                     rs.getDate("log_date")
                 );
                 logs.add(log);
@@ -536,7 +628,10 @@ public class DatabaseOperations {
     // ===== EXPORT AND REPORT OPERATIONS =====
     public static List<AttendanceLog> getAttendanceLogsByDateRange(Date startDate, Date endDate) {
         List<AttendanceLog> logs = new ArrayList<>();
-        String sql = "SELECT * FROM attendance_logs WHERE log_date BETWEEN ? AND ? ORDER BY log_date DESC, employee_name";
+        String sql = "SELECT id, employee_id, employee_name, " +
+                     "morning_clock_in, morning_clock_out, " +
+                     "afternoon_clock_in, afternoon_clock_out, " +
+                     "log_date FROM attendance_logs WHERE log_date BETWEEN ? AND ? ORDER BY log_date DESC, employee_name";
         
         try (Connection conn = DBConnection.getConnection();
              PreparedStatement pst = conn.prepareStatement(sql)) {
@@ -550,8 +645,10 @@ public class DatabaseOperations {
                         rs.getInt("id"),
                         rs.getString("employee_id"),
                         rs.getString("employee_name"),
-                        rs.getTime("clock_in"),
-                        rs.getTime("clock_out"),
+                        rs.getTime("morning_clock_in"),
+                        rs.getTime("morning_clock_out"),
+                        rs.getTime("afternoon_clock_in"),
+                        rs.getTime("afternoon_clock_out"),
                         rs.getDate("log_date")
                     );
                     logs.add(log);
@@ -559,6 +656,48 @@ public class DatabaseOperations {
             }
         } catch (SQLException e) {
             System.err.println("Error getting attendance logs by date range: " + e.getMessage());
+        }
+        return logs;
+    }
+    
+    /**
+     * Get attendance logs for a specific employee and month
+     */
+    public static List<AttendanceLog> getAttendanceLogsByMonth(String employeeId, int year, int month) {
+        List<AttendanceLog> logs = new ArrayList<>();
+        // Get first and last day of the month
+        LocalDate startDate = LocalDate.of(year, month, 1);
+        LocalDate endDate = startDate.withDayOfMonth(startDate.lengthOfMonth());
+        
+        String sql = "SELECT id, employee_id, employee_name, " +
+                     "morning_clock_in, morning_clock_out, " +
+                     "afternoon_clock_in, afternoon_clock_out, " +
+                     "log_date FROM attendance_logs WHERE employee_id = ? AND log_date BETWEEN ? AND ? ORDER BY log_date ASC";
+        
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement pst = conn.prepareStatement(sql)) {
+            
+            pst.setString(1, employeeId);
+            pst.setDate(2, java.sql.Date.valueOf(startDate));
+            pst.setDate(3, java.sql.Date.valueOf(endDate));
+            
+            try (ResultSet rs = pst.executeQuery()) {
+                while (rs.next()) {
+                    AttendanceLog log = new AttendanceLog(
+                        rs.getInt("id"),
+                        rs.getString("employee_id"),
+                        rs.getString("employee_name"),
+                        rs.getTime("morning_clock_in"),
+                        rs.getTime("morning_clock_out"),
+                        rs.getTime("afternoon_clock_in"),
+                        rs.getTime("afternoon_clock_out"),
+                        rs.getDate("log_date")
+                    );
+                    logs.add(log);
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("Error getting attendance logs by month: " + e.getMessage());
         }
         return logs;
     }
