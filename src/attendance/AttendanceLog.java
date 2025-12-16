@@ -4,6 +4,8 @@ import java.sql.Time;
 import java.sql.Date;
 import java.time.Duration;
 import java.time.LocalTime;
+import java.time.LocalDate;
+import java.time.DayOfWeek;
 import java.time.format.DateTimeFormatter;
 
 public class AttendanceLog {
@@ -206,16 +208,33 @@ public class AttendanceLog {
         return "";
     }
     
-    // Get formatted date
+    // Get formatted date with day abbreviation
     public String getFormattedDate() {
         if (logDate != null) {
             try {
-                return logDate.toLocalDate().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+                LocalDate date = logDate.toLocalDate();
+                DayOfWeek dayOfWeek = date.getDayOfWeek();
+                String dayAbbr = getDayAbbreviation(dayOfWeek);
+                return date.format(DateTimeFormatter.ofPattern("yyyy-MM-dd")) + " (" + dayAbbr + ")";
             } catch (Exception e) {
                 return logDate.toString();
             }
         }
         return "";
+    }
+    
+    // Get day abbreviation (Mon, Tue, Wed, Thu, Fri, Sat, Sun)
+    private String getDayAbbreviation(DayOfWeek dayOfWeek) {
+        switch (dayOfWeek) {
+            case MONDAY: return "Mon";
+            case TUESDAY: return "Tue";
+            case WEDNESDAY: return "Wed";
+            case THURSDAY: return "Thu";
+            case FRIDAY: return "Fri";
+            case SATURDAY: return "Sat";
+            case SUNDAY: return "Sun";
+            default: return "";
+        }
     }
     
     // Getters and Setters

@@ -208,8 +208,8 @@ public class DatabaseOperations {
     public static List<User> getAllUsers(boolean includeDeleted) {
         List<User> users = new ArrayList<>();
         String sql = includeDeleted 
-            ? "SELECT id, email, role, created_at, deleted_at FROM users ORDER BY deleted_at IS NULL DESC, created_at DESC"
-            : "SELECT id, email, role, created_at, deleted_at FROM users WHERE deleted_at IS NULL ORDER BY created_at DESC";
+            ? "SELECT id, email, role, created_at, deleted_at FROM users ORDER BY deleted_at IS NULL DESC, email ASC"
+            : "SELECT id, email, role, created_at, deleted_at FROM users WHERE deleted_at IS NULL ORDER BY email ASC";
         
         try (Connection conn = DBConnection.getConnection();
              PreparedStatement pst = conn.prepareStatement(sql);

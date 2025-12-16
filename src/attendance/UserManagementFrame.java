@@ -86,8 +86,8 @@ public class UserManagementFrame extends JFrame {
         userTable.setFont(new Font("Segoe UI", Font.PLAIN, 14));
         userTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         userTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 14));
-        userTable.getTableHeader().setBackground(ThemeManager.PRIMARY_COLOR);
-        userTable.getTableHeader().setForeground(Color.WHITE);
+        userTable.getTableHeader().setBackground(Color.WHITE);
+        userTable.getTableHeader().setForeground(Color.BLACK);
         
         // Add selection listener to update button states
         userTable.getSelectionModel().addListSelectionListener(e -> {

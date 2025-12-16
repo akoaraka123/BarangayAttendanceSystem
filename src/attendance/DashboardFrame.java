@@ -4,11 +4,16 @@ import javax.swing.*;
 import javax.swing.event.*;
 import java.awt.*;
 import java.awt.event.*;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 
 public class DashboardFrame extends JFrame {
     JButton btnManual, btnLogout;
     private RFIDReader rfidReader;
     private JLabel rfidStatusLabel;
+    private JLabel dateTimeLabel;
+    private Timer clockTimer;
     
     // Cooldown mechanism para maiwasan ang duplicate readings
     private String lastScannedCardId = null;
@@ -26,12 +31,33 @@ public class DashboardFrame extends JFrame {
 
         // ====== Header ======
         JPanel headerPanel = ThemeManager.createHeaderPanel();
-        headerPanel.setPreferredSize(new Dimension(800, 100));
+        headerPanel.setPreferredSize(new Dimension(800, 120));
         headerPanel.setLayout(new BorderLayout());
+        
+        // Top panel for date/time
+        JPanel topPanel = new JPanel(new BorderLayout());
+        topPanel.setOpaque(false);
+        
+        // Date and Time Label (Philippine Time) - Large and visible
+        dateTimeLabel = new JLabel("", SwingConstants.CENTER);
+        dateTimeLabel.setFont(new Font("Segoe UI", Font.BOLD, 32));
+        dateTimeLabel.setForeground(Color.WHITE);
+        updateDateTime(); // Initial update
+        topPanel.add(dateTimeLabel, BorderLayout.CENTER);
+        
+        // Start clock timer to update every second
+        clockTimer = new Timer(1000, e -> updateDateTime());
+        clockTimer.start();
+        
+        headerPanel.add(topPanel, BorderLayout.NORTH);
+        
+        // Bottom panel for dashboard title and controls
+        JPanel bottomHeaderPanel = new JPanel(new BorderLayout());
+        bottomHeaderPanel.setOpaque(false);
         
         JLabel headerLabel = new JLabel("🏢 Employee Dashboard", SwingConstants.CENTER);
         ThemeManager.styleHeaderLabel(headerLabel);
-        headerPanel.add(headerLabel, BorderLayout.CENTER);
+        bottomHeaderPanel.add(headerLabel, BorderLayout.CENTER);
         
         // RFID Status Label
         rfidStatusLabel = new JLabel("🔴 RFID: OFF", SwingConstants.CENTER);
@@ -40,7 +66,7 @@ public class DashboardFrame extends JFrame {
         JPanel statusPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         statusPanel.setOpaque(false);
         statusPanel.add(rfidStatusLabel);
-        headerPanel.add(statusPanel, BorderLayout.WEST);
+        bottomHeaderPanel.add(statusPanel, BorderLayout.WEST);
         
         // Logout button on the right
         btnLogout = new JButton("🚪 Logout");
@@ -49,10 +75,133 @@ public class DashboardFrame extends JFrame {
         JPanel logoutPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         logoutPanel.setOpaque(false);
         logoutPanel.add(btnLogout);
-        headerPanel.add(logoutPanel, BorderLayout.EAST);
+        bottomHeaderPanel.add(logoutPanel, BorderLayout.EAST);
+        
+        headerPanel.add(bottomHeaderPanel, BorderLayout.CENTER);
+
+        // ====== Content Panel with Logo Background ======
+        Image logoImage = null;
+        // Try to load logo from various locations (same as AdminDashboardFrame)
+        String[] possibleFilenames = {
+            "brgy logo.jpg",
+            "brgy logo.png",
+            "barangay_logo.png",
+            "barangay_logo.jpg",
+            "logo.png",
+            "logo.jpg"
+        };
+        
+        try {
+            // Try loading from resources folder (project root)
+            java.io.File logoFile = null;
+            for (String filename : possibleFilenames) {
+                logoFile = new java.io.File("resources/" + filename);
+                if (logoFile.exists()) {
+                    logoImage = javax.imageio.ImageIO.read(logoFile);
+                    System.out.println("Logo loaded: " + logoFile.getAbsolutePath());
+                    break;
+                }
+            }
+            
+            // If not found, try src/resources
+            if (logoImage == null) {
+                for (String filename : possibleFilenames) {
+                    logoFile = new java.io.File("src/resources/" + filename);
+                    if (logoFile.exists()) {
+                        logoImage = javax.imageio.ImageIO.read(logoFile);
+                        System.out.println("Logo loaded: " + logoFile.getAbsolutePath());
+                        break;
+                    }
+                }
+            }
+            
+            // Try loading from classpath resources
+            if (logoImage == null) {
+                for (String filename : possibleFilenames) {
+                    java.net.URL imageUrl = getClass().getResource("/resources/" + filename);
+                    if (imageUrl != null) {
+                        logoImage = javax.imageio.ImageIO.read(imageUrl);
+                        System.out.println("Logo loaded from classpath: " + filename);
+                        break;
+                    }
+                }
+            }
+            
+            if (logoImage == null) {
+                System.out.println("Logo image not found. Using default background.");
+            }
+        } catch (Exception e) {
+            System.out.println("Error loading logo image: " + e.getMessage());
+            logoImage = null;
+        }
+        
+        final Image finalLogoImage = logoImage;
+        
+        // Content panel with logo background
+        JPanel contentPanel = new JPanel() {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                
+                if (finalLogoImage != null) {
+                    System.out.println("Drawing logo - Panel size: " + getWidth() + "x" + getHeight());
+                    Graphics2D g2d = (Graphics2D) g.create();
+                    
+                    // Get panel dimensions
+                    int panelWidth = getWidth();
+                    int panelHeight = getHeight();
+                    
+                    // Calculate logo size (make it very large - almost full screen)
+                    int logoWidth = finalLogoImage.getWidth(this);
+                    int logoHeight = finalLogoImage.getHeight(this);
+                    
+                    // Scale logo to be very large (90% of panel width/height, maintain aspect ratio)
+                    double scale = Math.min((panelWidth * 0.90) / logoWidth, (panelHeight * 0.90) / logoHeight);
+                    int scaledWidth = (int) (logoWidth * scale);
+                    int scaledHeight = (int) (logoHeight * scale);
+                    
+                    // Position logo at the center (perfectly centered)
+                    int x = (panelWidth - scaledWidth) / 2;
+                    int y = (panelHeight - scaledHeight) / 2;
+                    
+                    // Set composite for transparency (gray effect)
+                    // AlphaComposite with 0.30 opacity makes it more visible
+                    g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.30f));
+                    
+                    // Convert to grayscale for gray effect
+                    java.awt.image.BufferedImage grayImage = new java.awt.image.BufferedImage(
+                        scaledWidth, scaledHeight, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+                    Graphics2D grayG2d = grayImage.createGraphics();
+                    grayG2d.drawImage(finalLogoImage, 0, 0, scaledWidth, scaledHeight, null);
+                    grayG2d.dispose();
+                    
+                    // Apply grayscale filter
+                    for (int i = 0; i < scaledWidth; i++) {
+                        for (int j = 0; j < scaledHeight; j++) {
+                            int rgb = grayImage.getRGB(i, j);
+                            int red = (rgb >> 16) & 0xFF;
+                            int green = (rgb >> 8) & 0xFF;
+                            int blue = rgb & 0xFF;
+                            // Convert to grayscale
+                            int gray = (int) (0.299 * red + 0.587 * green + 0.114 * blue);
+                            int grayRgb = (rgb & 0xFF000000) | (gray << 16) | (gray << 8) | gray;
+                            grayImage.setRGB(i, j, grayRgb);
+                        }
+                    }
+                    
+                    // Draw the gray, transparent logo
+                    g2d.drawImage(grayImage, x, y, null);
+                    g2d.dispose();
+                }
+            }
+        };
+        contentPanel.setLayout(new BorderLayout());
+        contentPanel.setBackground(new Color(250, 250, 250)); // Light gray background
+        contentPanel.setOpaque(true); // Make sure panel is opaque
 
         // ====== Button Panel ======
-        JPanel panel = ThemeManager.createModernPanel();
+        JPanel panel = new JPanel();
+        panel.setOpaque(false); // Transparent to show logo
         panel.setLayout(new GridLayout(2, 1, 30, 30));
         panel.setBorder(BorderFactory.createEmptyBorder(100, 350, 100, 350));
 
@@ -70,10 +219,12 @@ public class DashboardFrame extends JFrame {
 
         panel.add(btnManual);
         panel.add(btnRFIDManual);
+        
+        contentPanel.add(panel, BorderLayout.CENTER);
 
         setLayout(new BorderLayout());
         add(headerPanel, BorderLayout.NORTH);
-        add(panel, BorderLayout.CENTER);
+        add(contentPanel, BorderLayout.CENTER);
 
         btnManual.addActionListener(e -> manualEntry());
         btnRFIDManual.addActionListener(e -> enterRFIDCardID());
@@ -570,8 +721,31 @@ public class DashboardFrame extends JFrame {
         }
     }
     
+    /**
+     * Update date and time display (Philippine Time)
+     */
+    private void updateDateTime() {
+        // Get Philippine time (Asia/Manila timezone)
+        ZonedDateTime phTime = ZonedDateTime.now(ZoneId.of("Asia/Manila"));
+        
+        // Format date and time
+        String dateStr = phTime.format(DateTimeFormatter.ofPattern("EEEE, MMMM d, yyyy"));
+        String timeStr = phTime.format(DateTimeFormatter.ofPattern("hh:mm:ss a"));
+        
+        // Display with large font
+        dateTimeLabel.setText("<html><div style='text-align: center;'>" +
+                             "<div style='font-size: 28px; margin-bottom: 5px;'>" + dateStr + "</div>" +
+                             "<div style='font-size: 36px; font-weight: bold;'>" + timeStr + "</div>" +
+                             "</div></html>");
+    }
+    
     @Override
     public void dispose() {
+        // Stop clock timer
+        if (clockTimer != null) {
+            clockTimer.stop();
+        }
+        
         // Clean up RFID reader when closing
         if (rfidReader != null) {
             rfidReader.stopReading();
@@ -579,3 +753,4 @@ public class DashboardFrame extends JFrame {
         super.dispose();
     }
 }
+

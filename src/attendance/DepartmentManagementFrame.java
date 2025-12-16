@@ -162,8 +162,8 @@ public class DepartmentManagementFrame extends JFrame {
         departmentTable.setFont(new Font("Segoe UI", Font.PLAIN, 14));
         departmentTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         departmentTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 14));
-        departmentTable.getTableHeader().setBackground(ThemeManager.PRIMARY_COLOR);
-        departmentTable.getTableHeader().setForeground(Color.WHITE);
+        departmentTable.getTableHeader().setBackground(Color.WHITE);
+        departmentTable.getTableHeader().setForeground(Color.BLACK);
         
         // Set column widths
         TableColumnModel columnModel = departmentTable.getColumnModel();
@@ -546,8 +546,8 @@ public class DepartmentManagementFrame extends JFrame {
         table.setFont(new Font("Segoe UI", Font.PLAIN, 14));
         table.setEnabled(false);
         table.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 14));
-        table.getTableHeader().setBackground(ThemeManager.PRIMARY_COLOR);
-        table.getTableHeader().setForeground(Color.WHITE);
+        table.getTableHeader().setBackground(Color.WHITE);
+        table.getTableHeader().setForeground(Color.BLACK);
         
         JScrollPane scrollPane = new JScrollPane(table);
         dialog.add(scrollPane);

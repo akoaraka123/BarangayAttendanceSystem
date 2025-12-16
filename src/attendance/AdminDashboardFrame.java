@@ -305,18 +305,36 @@ public class AdminDashboardFrame extends JFrame {
         idDialog.add(idPanel);
         idDialog.setVisible(true);
 
-        // Full Name validation
+        // First Name (Nickname) validation
+        String firstName = "";
         while (true) {
-            fullName = ThemeManager.showLargeInputDialog(this, "Enter Full Name:", "Full Name");
-            if (fullName == null) return;
+            firstName = ThemeManager.showLargeInputDialog(this, "Enter First Name (Nickname):", "First Name");
+            if (firstName == null) return;
             
-            String error = InputValidator.getNameErrorMessage(fullName);
+            String error = InputValidator.getNameErrorMessage(firstName);
             if (error.isEmpty()) {
-                fullName = InputValidator.capitalizeName(fullName);
+                firstName = InputValidator.capitalizeName(firstName.trim());
                 break;
             }
             showLargeErrorDialog(this, error, "Validation Error");
         }
+        
+        // Last Name validation
+        String lastName = "";
+        while (true) {
+            lastName = ThemeManager.showLargeInputDialog(this, "Enter Last Name:", "Last Name");
+            if (lastName == null) return;
+            
+            String error = InputValidator.getNameErrorMessage(lastName);
+            if (error.isEmpty()) {
+                lastName = InputValidator.capitalizeName(lastName.trim());
+                break;
+            }
+            showLargeErrorDialog(this, error, "Validation Error");
+        }
+        
+        // Combine first name and last name
+        fullName = firstName + " " + lastName;
 
         // Contact Number validation
         while (true) {
@@ -447,39 +465,79 @@ public class AdminDashboardFrame extends JFrame {
     }
 
     private void viewLogs() {
-        List<AttendanceLog> logs = DatabaseOperations.getAllAttendanceLogs();
-        if (logs.isEmpty()) {
+        List<AttendanceLog> allLogs = DatabaseOperations.getAllAttendanceLogs();
+        if (allLogs.isEmpty()) {
             JOptionPane.showMessageDialog(this, "No attendance logs found.", "Information", JOptionPane.INFORMATION_MESSAGE);
             return;
         }
 
+        // Create dialog
+        JDialog dialog = new JDialog(this, "Attendance Logs", true);
+        dialog.setSize(1200, 700);
+        dialog.setLocationRelativeTo(this);
+        dialog.setLayout(new BorderLayout());
+        
+        // Main panel
+        JPanel mainPanel = new JPanel(new BorderLayout());
+        mainPanel.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
+        
+        // Search bar panel
+        JPanel searchPanel = new JPanel(new BorderLayout());
+        searchPanel.setBorder(BorderFactory.createEmptyBorder(0, 0, 10, 0));
+        
+        JLabel searchLabel = new JLabel("🔍 Search:");
+        searchLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        searchPanel.add(searchLabel, BorderLayout.WEST);
+        
+        JTextField searchField = new JTextField(30);
+        searchField.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        searchField.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(Color.GRAY, 1),
+            BorderFactory.createEmptyBorder(5, 10, 5, 10)
+        ));
+        
+        // Autocomplete suggestions
+        DefaultListModel<String> suggestionModel = new DefaultListModel<>();
+        JList<String> suggestionList = new JList<>(suggestionModel);
+        suggestionList.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        suggestionList.setVisibleRowCount(5);
+        JPopupMenu suggestionPopup = new JPopupMenu();
+        suggestionPopup.add(new JScrollPane(suggestionList));
+        
+        searchPanel.add(searchField, BorderLayout.CENTER);
+        mainPanel.add(searchPanel, BorderLayout.NORTH);
+        
+        // Table
         String[] columnNames = {"ID", "Name", "Employee ID", "Morning IN", "Morning OUT", 
                                 "Afternoon IN", "Afternoon OUT", "Date", "Hours Worked"};
-        Object[][] data = new Object[logs.size()][9];
-
-        for (int i = 0; i < logs.size(); i++) {
-            AttendanceLog log = logs.get(i);
-            data[i][0] = log.getId();
-            data[i][1] = log.getEmployeeName();
-            data[i][2] = log.getEmployeeId();
-            data[i][3] = log.getFormattedMorningClockIn();
-            data[i][4] = log.getFormattedMorningClockOut();
-            data[i][5] = log.getFormattedAfternoonClockIn();
-            data[i][6] = log.getFormattedAfternoonClockOut();
-            data[i][7] = log.getFormattedDate();
-            data[i][8] = log.getHoursWorked();
-        }
-
-        JTable table = new JTable(data, columnNames) {
+        DefaultTableModel model = new DefaultTableModel(columnNames, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+        
+        // Store all logs for filtering
+        final List<AttendanceLog> logsList = new ArrayList<>(allLogs);
+        
+        // Populate table with sorted data (by employee name, then by date)
+        populateAttendanceTable(model, logsList, "");
+        
+        JTable table = new JTable(model) {
             @Override
             public Component prepareRenderer(TableCellRenderer renderer, int row, int col) {
                 Component c = super.prepareRenderer(renderer, row, col);
-                String hoursText = (String) getValueAt(row, 8);
-                if (hoursText != null && !hoursText.isEmpty() && hoursText.contains("h")) {
-                    try { 
-                        int h = Integer.parseInt(hoursText.split("h")[0].trim());
-                        c.setForeground(h < 8 ? Color.RED : Color.BLACK); 
-                    } catch (Exception ex) { 
+                Object hoursObj = getValueAt(row, 8);
+                if (hoursObj != null) {
+                    String hoursText = hoursObj.toString();
+                    if (!hoursText.isEmpty() && hoursText.contains("h")) {
+                        try { 
+                            int h = Integer.parseInt(hoursText.split("h")[0].trim());
+                            c.setForeground(h < 8 ? Color.RED : Color.BLACK); 
+                        } catch (Exception ex) { 
+                            c.setForeground(Color.BLACK); 
+                        }
+                    } else { 
                         c.setForeground(Color.BLACK); 
                     }
                 } else { 
@@ -490,9 +548,9 @@ public class AdminDashboardFrame extends JFrame {
         };
 
         table.setEnabled(false);
-        table.setRowHeight(30); // Increase row height for better visibility
-        table.setFont(new Font("Segoe UI", Font.PLAIN, 14)); // Larger font
-        table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF); // Manual column sizing for better control
+        table.setRowHeight(30);
+        table.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
 
         // Set optimal column widths
         TableColumnModel columnModel = table.getColumnModel();
@@ -503,46 +561,178 @@ public class AdminDashboardFrame extends JFrame {
         columnModel.getColumn(4).setPreferredWidth(110);  // Morning OUT
         columnModel.getColumn(5).setPreferredWidth(110);  // Afternoon IN
         columnModel.getColumn(6).setPreferredWidth(110);  // Afternoon OUT
-        columnModel.getColumn(7).setPreferredWidth(120);  // Date
+        columnModel.getColumn(7).setPreferredWidth(150);  // Date (wider for abbreviation)
         columnModel.getColumn(8).setPreferredWidth(120);  // Hours Worked
 
         JScrollPane scrollPane = new JScrollPane(table);
-        // Make it full view - use most of the screen
-        Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
-        int dialogWidth = (int)(screenSize.width * 0.9); // 90% of screen width
-        int dialogHeight = (int)(screenSize.height * 0.8); // 80% of screen height
-        scrollPane.setPreferredSize(new Dimension(dialogWidth - 100, dialogHeight - 150));
-
-        String[] options = {"OK", "REMOVE"};
-        int choice = JOptionPane.showOptionDialog(this, scrollPane, "Attendance Logs",
-                JOptionPane.DEFAULT_OPTION, JOptionPane.INFORMATION_MESSAGE,
-                null, options, options[0]);
-
-        if (choice == 1) { // REMOVE
-            String adminPass = ThemeManager.showPasswordDialog(this, "Enter Admin Password:", "Admin Password");
-            if (!"admin123".equals(adminPass)) {
-                JOptionPane.showMessageDialog(this, "Unauthorized! Incorrect password.", "Error", JOptionPane.ERROR_MESSAGE);
-                return;
-            }
-
-            // Use search dialog with suggestions for logs
-            AttendanceLog logToRemove = searchLogWithSuggestions(logs, "Remove Log");
-            if (logToRemove == null) {
-                return;
+        mainPanel.add(scrollPane, BorderLayout.CENTER);
+        
+        // Search functionality
+        searchField.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyReleased(KeyEvent e) {
+                String searchText = searchField.getText();
+                
+                if (searchText.length() >= 2) {
+                    // Show suggestions
+                    List<String> matches = logsList.stream()
+                        .map(log -> log.getEmployeeName())
+                        .filter(name -> name.toLowerCase().contains(searchText.toLowerCase()))
+                        .distinct()
+                        .collect(Collectors.toList());
+                    
+                    suggestionModel.clear();
+                    for (String match : matches) {
+                        suggestionModel.addElement(match);
+                    }
+                    
+                    if (!matches.isEmpty() && !suggestionPopup.isVisible()) {
+                        suggestionPopup.show(searchField, 0, searchField.getHeight());
+                        suggestionPopup.setPreferredSize(new Dimension(searchField.getWidth(), Math.min(150, matches.size() * 25)));
+                    } else if (matches.isEmpty()) {
+                        suggestionPopup.setVisible(false);
+                    }
+                } else {
+                    suggestionPopup.setVisible(false);
+                }
+                
+                // Filter and sort table
+                populateAttendanceTable(model, logsList, searchText);
             }
             
-            int logId = logToRemove.getId();
-
-            int confirm = JOptionPane.showConfirmDialog(this,
-                    "Are you sure you want to remove this log?\n" + logToRemove.toString(),
-                    "Confirm Remove", JOptionPane.YES_NO_OPTION);
-            if (confirm != JOptionPane.YES_OPTION) return;
-
-            if (DatabaseOperations.removeAttendanceLog(logId)) {
-                JOptionPane.showMessageDialog(this, "Log removed successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
-            } else {
-                JOptionPane.showMessageDialog(this, "Error removing log!", "Error", JOptionPane.ERROR_MESSAGE);
+            @Override
+            public void keyPressed(KeyEvent e) {
+                if (e.getKeyCode() == KeyEvent.VK_ESCAPE) {
+                    suggestionPopup.setVisible(false);
+                }
             }
+        });
+        
+        // Double-click on suggestion to select
+        suggestionList.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (e.getClickCount() == 2) {
+                    String selectedName = suggestionList.getSelectedValue();
+                    if (selectedName != null) {
+                        searchField.setText(selectedName);
+                        suggestionPopup.setVisible(false);
+                        populateAttendanceTable(model, logsList, selectedName);
+                    }
+                }
+            }
+        });
+        
+        // Hide suggestions when focus is lost
+        searchField.addFocusListener(new FocusAdapter() {
+            @Override
+            public void focusLost(FocusEvent e) {
+                SwingUtilities.invokeLater(() -> {
+                    if (!suggestionPopup.isFocusOwner() && !suggestionList.isFocusOwner()) {
+                        suggestionPopup.setVisible(false);
+                    }
+                });
+            }
+        });
+        
+        // Button panel
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 10));
+        JButton btnRemove = new JButton("REMOVE");
+        JButton btnOK = new JButton("OK");
+        
+        ThemeManager.styleButton(btnRemove);
+        ThemeManager.styleButton(btnOK);
+        
+        btnRemove.addActionListener(e -> {
+            int selectedRow = table.getSelectedRow();
+            if (selectedRow >= 0) {
+                String adminPass = ThemeManager.showPasswordDialog(dialog, "Enter Admin Password:", "Admin Password");
+                if (!"admin123".equals(adminPass)) {
+                    JOptionPane.showMessageDialog(dialog, "Unauthorized! Incorrect password.", "Error", JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+                
+                int logId = (Integer) model.getValueAt(selectedRow, 0);
+                int confirm = JOptionPane.showConfirmDialog(dialog,
+                    "Are you sure you want to remove this attendance log?",
+                    "Confirm Remove",
+                    JOptionPane.YES_NO_OPTION,
+                    JOptionPane.WARNING_MESSAGE);
+                
+                if (confirm == JOptionPane.YES_OPTION) {
+                    if (DatabaseOperations.removeAttendanceLog(logId)) {
+                        JOptionPane.showMessageDialog(dialog, "Attendance log removed successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
+                        // Refresh logs
+                        allLogs.clear();
+                        allLogs.addAll(DatabaseOperations.getAllAttendanceLogs());
+                        logsList.clear();
+                        logsList.addAll(allLogs);
+                        populateAttendanceTable(model, logsList, searchField.getText());
+                    } else {
+                        JOptionPane.showMessageDialog(dialog, "Failed to remove attendance log.", "Error", JOptionPane.ERROR_MESSAGE);
+                    }
+                }
+            } else {
+                JOptionPane.showMessageDialog(dialog, "Please select a log to remove.", "No Selection", JOptionPane.WARNING_MESSAGE);
+            }
+        });
+        
+        btnOK.addActionListener(e -> dialog.dispose());
+        
+        buttonPanel.add(btnRemove);
+        buttonPanel.add(btnOK);
+        mainPanel.add(buttonPanel, BorderLayout.SOUTH);
+        
+        dialog.add(mainPanel);
+        dialog.setVisible(true);
+    }
+    
+    // Helper method to populate attendance table with sorted data
+    private void populateAttendanceTable(DefaultTableModel model, List<AttendanceLog> logs, String searchText) {
+        model.setRowCount(0);
+        
+        // Filter logs if search text is provided
+        List<AttendanceLog> filteredLogs = new ArrayList<>();
+        if (searchText == null || searchText.trim().isEmpty()) {
+            filteredLogs.addAll(logs);
+        } else {
+            String lowerSearch = searchText.toLowerCase();
+            for (AttendanceLog log : logs) {
+                String name = log.getEmployeeName() != null ? log.getEmployeeName().toLowerCase() : "";
+                String empId = log.getEmployeeId() != null ? log.getEmployeeId().toLowerCase() : "";
+                if (name.contains(lowerSearch) || empId.contains(lowerSearch)) {
+                    filteredLogs.add(log);
+                }
+            }
+        }
+        
+        // Sort by employee name, then by date (ascending - oldest first)
+        filteredLogs.sort((log1, log2) -> {
+            // First sort by employee name
+            int nameCompare = log1.getEmployeeName().compareToIgnoreCase(log2.getEmployeeName());
+            if (nameCompare != 0) {
+                return nameCompare;
+            }
+            // If same name, sort by date (ascending - oldest first)
+            if (log1.getLogDate() != null && log2.getLogDate() != null) {
+                return log1.getLogDate().compareTo(log2.getLogDate());
+            }
+            return 0;
+        });
+        
+        // Populate table
+        for (AttendanceLog log : filteredLogs) {
+            model.addRow(new Object[]{
+                log.getId(),
+                log.getEmployeeName(),
+                log.getEmployeeId(),
+                log.getFormattedMorningClockIn(),
+                log.getFormattedMorningClockOut(),
+                log.getFormattedAfternoonClockIn(),
+                log.getFormattedAfternoonClockOut(),
+                log.getFormattedDate(),
+                log.getHoursWorked()
+            });
         }
     }
 
@@ -627,8 +817,8 @@ public class AdminDashboardFrame extends JFrame {
         table.setRowHeight(30);
         table.setFont(new Font("Segoe UI", Font.PLAIN, 14));
         table.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 14));
-        table.getTableHeader().setBackground(ThemeManager.PRIMARY_COLOR);
-        table.getTableHeader().setForeground(Color.WHITE);
+        table.getTableHeader().setBackground(Color.WHITE);
+        table.getTableHeader().setForeground(Color.BLACK);
         
         TableColumnModel columnModel = table.getColumnModel();
         columnModel.getColumn(0).setPreferredWidth(50);  // #
@@ -2766,67 +2956,206 @@ public class AdminDashboardFrame extends JFrame {
             return;
         }
         
-        // Create search dialog
-        String[] employeeNames = new String[employees.size()];
-        for (int i = 0; i < employees.size(); i++) {
-            employeeNames[i] = employees.get(i).getFullName() + " (" + employees.get(i).getEmployeeId() + ")";
-        }
-        
-        String selectedEmployee = (String) JOptionPane.showInputDialog(
-            this,
-            "Select employee for DTR:",
-            "Generate DTR",
-            JOptionPane.QUESTION_MESSAGE,
-            null,
-            employeeNames,
-            employeeNames[0]
-        );
+        // Create search dialog with search bar
+        Employee selectedEmployee = searchEmployeeWithSuggestions("Select Employee for DTR");
         
         if (selectedEmployee == null) {
             return; // User cancelled
         }
         
-        // Extract employee ID from selection
-        String employeeId = selectedEmployee.substring(selectedEmployee.indexOf("(") + 1, selectedEmployee.indexOf(")"));
-        String employeeName = selectedEmployee.substring(0, selectedEmployee.indexOf("(")).trim();
+        String employeeId = selectedEmployee.getEmployeeId();
+        String employeeName = selectedEmployee.getFullName();
         
         // Get current month and year
         LocalDate now = LocalDate.now();
         int currentYear = now.getYear();
         int currentMonth = now.getMonthValue();
         
-        // Create month/year selection dialog
-        JPanel monthYearPanel = new JPanel(new GridLayout(2, 2, 10, 10));
-        monthYearPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        // Create larger dialog with more options
+        JDialog dtrDialog = new JDialog(this, "DTR Options - " + employeeName, true);
+        dtrDialog.setSize(500, 400);
+        dtrDialog.setLocationRelativeTo(this);
+        dtrDialog.setLayout(new BorderLayout());
         
+        JPanel mainPanel = new JPanel(new BorderLayout());
+        mainPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        
+        // Top panel for month/year selection
+        JPanel topPanel = new JPanel(new GridBagLayout());
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(10, 10, 10, 10);
+        gbc.anchor = GridBagConstraints.WEST;
+        
+        // Year
+        gbc.gridx = 0; gbc.gridy = 0;
         JLabel yearLabel = new JLabel("Year:");
+        yearLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        topPanel.add(yearLabel, gbc);
+        gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0;
         JSpinner yearSpinner = new JSpinner(new SpinnerNumberModel(currentYear, 2020, 2100, 1));
+        yearSpinner.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        ((JSpinner.DefaultEditor) yearSpinner.getEditor()).getTextField().setColumns(10);
+        topPanel.add(yearSpinner, gbc);
         
+        // Month
+        gbc.gridx = 0; gbc.gridy = 1; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0;
         JLabel monthLabel = new JLabel("Month:");
+        monthLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        topPanel.add(monthLabel, gbc);
+        gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0;
         String[] months = {"January", "February", "March", "April", "May", "June",
                           "July", "August", "September", "October", "November", "December"};
         JComboBox<String> monthCombo = new JComboBox<>(months);
         monthCombo.setSelectedIndex(currentMonth - 1);
+        monthCombo.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        topPanel.add(monthCombo, gbc);
         
-        monthYearPanel.add(yearLabel);
-        monthYearPanel.add(yearSpinner);
-        monthYearPanel.add(monthLabel);
-        monthYearPanel.add(monthCombo);
+        mainPanel.add(topPanel, BorderLayout.NORTH);
         
-        int result = JOptionPane.showConfirmDialog(
-            this,
-            monthYearPanel,
-            "Select Month and Year for DTR",
-            JOptionPane.OK_CANCEL_OPTION,
-            JOptionPane.QUESTION_MESSAGE
+        // Period selection panel
+        JPanel periodPanel = new JPanel(new GridBagLayout());
+        periodPanel.setBorder(BorderFactory.createTitledBorder("Select Period"));
+        GridBagConstraints gbc2 = new GridBagConstraints();
+        gbc2.insets = new Insets(10, 10, 10, 10);
+        gbc2.anchor = GridBagConstraints.WEST;
+        
+        ButtonGroup periodGroup = new ButtonGroup();
+        JRadioButton rbFullMonth = new JRadioButton("Full Month", true);
+        JRadioButton rbFirstHalf = new JRadioButton("1st Half (1-15)");
+        JRadioButton rbSecondHalf = new JRadioButton("2nd Half (16-end)");
+        JRadioButton rbWeekly = new JRadioButton("Weekly");
+        
+        rbFullMonth.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        rbFirstHalf.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        rbSecondHalf.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        rbWeekly.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        
+        periodGroup.add(rbFullMonth);
+        periodGroup.add(rbFirstHalf);
+        periodGroup.add(rbSecondHalf);
+        periodGroup.add(rbWeekly);
+        
+        gbc2.gridx = 0; gbc2.gridy = 0;
+        periodPanel.add(rbFullMonth, gbc2);
+        gbc2.gridy = 1;
+        periodPanel.add(rbFirstHalf, gbc2);
+        gbc2.gridy = 2;
+        periodPanel.add(rbSecondHalf, gbc2);
+        gbc2.gridy = 3;
+        periodPanel.add(rbWeekly, gbc2);
+        
+        // Week selection (only visible when weekly is selected)
+        JLabel weekLabel = new JLabel("Select Week:");
+        weekLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        weekLabel.setEnabled(false);
+        JComboBox<String> weekCombo = new JComboBox<>(new String[]{"Week 1 (1-7)", "Week 2 (8-14)", "Week 3 (15-21)", "Week 4 (22-28)", "Week 5 (29-31)"});
+        weekCombo.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        weekCombo.setEnabled(false);
+        
+        gbc2.gridx = 1; gbc2.gridy = 3; gbc2.insets = new Insets(10, 20, 10, 10);
+        periodPanel.add(weekLabel, gbc2);
+        gbc2.gridx = 2;
+        periodPanel.add(weekCombo, gbc2);
+        
+        rbWeekly.addActionListener(e -> {
+            boolean enabled = rbWeekly.isSelected();
+            weekLabel.setEnabled(enabled);
+            weekCombo.setEnabled(enabled);
+        });
+        
+        mainPanel.add(periodPanel, BorderLayout.CENTER);
+        
+        // Button panel
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 10));
+        JButton btnView = new JButton("👁️ View DTR");
+        JButton btnPrint = new JButton("🖨️ Print DTR");
+        JButton btnCancel = new JButton("Cancel");
+        
+        ThemeManager.styleSuccessButton(btnView);
+        ThemeManager.styleButton(btnPrint);
+        ThemeManager.styleButton(btnCancel);
+        
+        btnView.setPreferredSize(new Dimension(120, 35));
+        btnPrint.setPreferredSize(new Dimension(120, 35));
+        btnCancel.setPreferredSize(new Dimension(100, 35));
+        
+        final int[] finalChoice = {0}; // 0 = cancel, 1 = view, 2 = print
+        
+        btnView.addActionListener(e -> {
+            finalChoice[0] = 1;
+            dtrDialog.dispose();
+        });
+        
+        btnPrint.addActionListener(e -> {
+            finalChoice[0] = 2;
+            dtrDialog.dispose();
+        });
+        
+        btnCancel.addActionListener(e -> {
+            finalChoice[0] = 0;
+            dtrDialog.dispose();
+        });
+        
+        buttonPanel.add(btnView);
+        buttonPanel.add(btnPrint);
+        buttonPanel.add(btnCancel);
+        
+        mainPanel.add(buttonPanel, BorderLayout.SOUTH);
+        dtrDialog.add(mainPanel);
+        dtrDialog.setVisible(true);
+        
+        if (finalChoice[0] == 0) {
+            return; // Cancelled
+        }
+        
+        int selectedYear = (Integer) yearSpinner.getValue();
+        int selectedMonth = monthCombo.getSelectedIndex() + 1;
+        
+        // Calculate date range based on selection
+        LocalDate startDate, endDate;
+        LocalDate monthStart = LocalDate.of(selectedYear, selectedMonth, 1);
+        int daysInMonth = monthStart.lengthOfMonth();
+        
+        if (rbFullMonth.isSelected()) {
+            startDate = monthStart;
+            endDate = monthStart.withDayOfMonth(daysInMonth);
+        } else if (rbFirstHalf.isSelected()) {
+            startDate = monthStart;
+            endDate = monthStart.withDayOfMonth(15);
+        } else if (rbSecondHalf.isSelected()) {
+            startDate = monthStart.withDayOfMonth(16);
+            endDate = monthStart.withDayOfMonth(daysInMonth);
+        } else if (rbWeekly.isSelected()) {
+            int weekIndex = weekCombo.getSelectedIndex();
+            int startDay = weekIndex * 7 + 1;
+            int endDay = Math.min(startDay + 6, daysInMonth);
+            startDate = monthStart.withDayOfMonth(startDay);
+            endDate = monthStart.withDayOfMonth(endDay);
+        } else {
+            startDate = monthStart;
+            endDate = monthStart.withDayOfMonth(daysInMonth);
+        }
+        
+        // Get logs for the date range
+        List<AttendanceLog> logs = DatabaseOperations.getAttendanceLogsByDateRange(
+            java.sql.Date.valueOf(startDate), 
+            java.sql.Date.valueOf(endDate)
         );
         
-        if (result == JOptionPane.OK_OPTION) {
-            int selectedYear = (Integer) yearSpinner.getValue();
-            int selectedMonth = monthCombo.getSelectedIndex() + 1;
-            
-            // Generate DTR
-            DTRGenerator.generateDTR(employeeId, employeeName, selectedYear, selectedMonth);
+        // Filter by employee
+        List<AttendanceLog> employeeLogs = new ArrayList<>();
+        for (AttendanceLog log : logs) {
+            if (log.getEmployeeId().equals(employeeId)) {
+                employeeLogs.add(log);
+            }
+        }
+        
+        if (finalChoice[0] == 1) {
+            // View DTR
+            DTRGenerator.showDTRPreview(employeeId, employeeName, startDate, endDate, employeeLogs);
+        } else if (finalChoice[0] == 2) {
+            // Print DTR
+            DTRGenerator.generateDTR(employeeId, employeeName, startDate, endDate, employeeLogs);
         }
     }
     

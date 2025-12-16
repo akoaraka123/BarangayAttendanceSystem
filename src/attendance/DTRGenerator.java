@@ -16,11 +16,9 @@ import java.sql.Time;
 public class DTRGenerator {
     
     /**
-     * Generate and print DTR for an employee
+     * Generate and print DTR for an employee (with date range)
      */
-    public static void generateDTR(String employeeId, String employeeName, int year, int month) {
-        // Get attendance logs for the specified month
-        List<AttendanceLog> logs = DatabaseOperations.getAttendanceLogsByMonth(employeeId, year, month);
+    public static void generateDTR(String employeeId, String employeeName, LocalDate startDate, LocalDate endDate, List<AttendanceLog> logs) {
         
         // Create print job
         PrinterJob job = PrinterJob.getPrinterJob();
@@ -39,7 +37,7 @@ public class DTRGenerator {
         pageFormat.setOrientation(PageFormat.PORTRAIT);
         
         // Create printable DTR
-        DTRPrintable printable = new DTRPrintable(employeeName, year, month, logs);
+        DTRPrintable printable = new DTRPrintable(employeeName, startDate, endDate, logs);
         job.setPrintable(printable, pageFormat);
         
         // Show print dialog
@@ -61,17 +59,25 @@ public class DTRGenerator {
     }
     
     /**
-     * Show DTR preview
+     * Generate and print DTR for an employee (legacy method - full month)
      */
-    public static void showDTRPreview(String employeeId, String employeeName, int year, int month) {
+    public static void generateDTR(String employeeId, String employeeName, int year, int month) {
+        LocalDate startDate = LocalDate.of(year, month, 1);
+        LocalDate endDate = startDate.withDayOfMonth(startDate.lengthOfMonth());
         List<AttendanceLog> logs = DatabaseOperations.getAttendanceLogsByMonth(employeeId, year, month);
-        
+        generateDTR(employeeId, employeeName, startDate, endDate, logs);
+    }
+    
+    /**
+     * Show DTR preview (with date range)
+     */
+    public static void showDTRPreview(String employeeId, String employeeName, LocalDate startDate, LocalDate endDate, List<AttendanceLog> logs) {
         JFrame previewFrame = new JFrame("DTR Preview - " + employeeName);
         previewFrame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-        previewFrame.setSize(800, 1000);
+        previewFrame.setSize(900, 1000);
         previewFrame.setLocationRelativeTo(null);
         
-        DTRPreviewPanel previewPanel = new DTRPreviewPanel(employeeName, year, month, logs);
+        DTRPreviewPanel previewPanel = new DTRPreviewPanel(employeeName, startDate, endDate, logs);
         JScrollPane scrollPane = new JScrollPane(previewPanel);
         previewFrame.add(scrollPane);
         
@@ -79,10 +85,13 @@ public class DTRGenerator {
         JPanel buttonPanel = new JPanel();
         JButton printButton = new JButton("🖨️ Print DTR");
         printButton.addActionListener(e -> {
-            generateDTR(employeeId, employeeName, year, month);
+            generateDTR(employeeId, employeeName, startDate, endDate, logs);
         });
         JButton closeButton = new JButton("Close");
         closeButton.addActionListener(e -> previewFrame.dispose());
+        
+        ThemeManager.styleButton(printButton);
+        ThemeManager.styleButton(closeButton);
         
         buttonPanel.add(printButton);
         buttonPanel.add(closeButton);
@@ -96,14 +105,14 @@ public class DTRGenerator {
      */
     private static class DTRPrintable implements Printable {
         private String employeeName;
-        private int year;
-        private int month;
+        private LocalDate startDate;
+        private LocalDate endDate;
         private List<AttendanceLog> logs;
         
-        public DTRPrintable(String employeeName, int year, int month, List<AttendanceLog> logs) {
+        public DTRPrintable(String employeeName, LocalDate startDate, LocalDate endDate, List<AttendanceLog> logs) {
             this.employeeName = employeeName;
-            this.year = year;
-            this.month = month;
+            this.startDate = startDate;
+            this.endDate = endDate;
             this.logs = logs;
         }
         
@@ -142,8 +151,20 @@ public class DTRGenerator {
             y += nameMetrics.getHeight() + 15;
             
             // Period
-            String monthName = LocalDate.of(year, month, 1).format(DateTimeFormatter.ofPattern("MMMM"));
-            String period = "For the month of " + monthName.toUpperCase() + " " + year;
+            String period;
+            if (startDate.getMonthValue() == endDate.getMonthValue() && 
+                startDate.getYear() == endDate.getYear() &&
+                startDate.getDayOfMonth() == 1 && 
+                endDate.getDayOfMonth() == endDate.lengthOfMonth()) {
+                // Full month
+                String monthName = startDate.format(DateTimeFormatter.ofPattern("MMMM"));
+                period = "For the month of " + monthName.toUpperCase() + " " + startDate.getYear();
+            } else {
+                // Date range
+                String startStr = startDate.format(DateTimeFormatter.ofPattern("MMMM d, yyyy"));
+                String endStr = endDate.format(DateTimeFormatter.ofPattern("MMMM d, yyyy"));
+                period = "For the period " + startStr.toUpperCase() + " to " + endStr.toUpperCase();
+            }
             g2d.drawString(period, (float)x, (float)y);
             y += nameMetrics.getHeight() + 5;
             
@@ -188,27 +209,25 @@ public class DTRGenerator {
             
             tableY += rowHeight;
             
-            // Draw table data for each day of the month
-            LocalDate startDate = LocalDate.of(year, month, 1);
-            int daysInMonth = startDate.lengthOfMonth();
-            
+            // Draw table data for each day in the date range
             // Create a map of logs by date
-            java.util.Map<Integer, AttendanceLog> logMap = new java.util.HashMap<>();
+            java.util.Map<LocalDate, AttendanceLog> logMap = new java.util.HashMap<>();
             for (AttendanceLog log : logs) {
                 LocalDate logDate = log.getLogDate().toLocalDate();
-                if (logDate.getYear() == year && logDate.getMonthValue() == month) {
-                    logMap.put(logDate.getDayOfMonth(), log);
+                if (!logDate.isBefore(startDate) && !logDate.isAfter(endDate)) {
+                    logMap.put(logDate, log);
                 }
             }
             
-            for (int day = 1; day <= daysInMonth; day++) {
-                LocalDate currentDate = LocalDate.of(year, month, day);
+            LocalDate currentDate = startDate;
+            while (!currentDate.isAfter(endDate)) {
+                int day = currentDate.getDayOfMonth();
                 DayOfWeek dayOfWeek = currentDate.getDayOfWeek();
                 
                 // Day number
                 g2d.drawString(String.valueOf(day), (float)tableX, (float)tableY);
                 
-                AttendanceLog log = logMap.get(day);
+                AttendanceLog log = logMap.get(currentDate);
                 
                 if (dayOfWeek == DayOfWeek.SATURDAY) {
                     g2d.drawString("SATURDAY", (float)(tableX + col1Width), (float)tableY);
@@ -245,9 +264,12 @@ public class DTRGenerator {
                 
                 tableY += rowHeight;
                 
+                // Move to next day
+                currentDate = currentDate.plusDays(1);
+                
                 // Check if we need a new page
                 if (tableY > pageHeight - 100) {
-                    // Would need to handle page breaks for long months
+                    // Would need to handle page breaks for long periods
                     break;
                 }
             }
@@ -306,16 +328,16 @@ public class DTRGenerator {
      */
     private static class DTRPreviewPanel extends JPanel {
         private String employeeName;
-        private int year;
-        private int month;
+        private LocalDate startDate;
+        private LocalDate endDate;
         private List<AttendanceLog> logs;
         
-        public DTRPreviewPanel(String employeeName, int year, int month, List<AttendanceLog> logs) {
+        public DTRPreviewPanel(String employeeName, LocalDate startDate, LocalDate endDate, List<AttendanceLog> logs) {
             this.employeeName = employeeName;
-            this.year = year;
-            this.month = month;
+            this.startDate = startDate;
+            this.endDate = endDate;
             this.logs = logs;
-            setPreferredSize(new Dimension(800, 1200));
+            setPreferredSize(new Dimension(800, 1400));
             setBackground(Color.WHITE);
         }
         
@@ -323,17 +345,214 @@ public class DTRGenerator {
         protected void paintComponent(Graphics g) {
             super.paintComponent(g);
             Graphics2D g2d = (Graphics2D) g;
+            g2d.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
             
-            // Similar drawing logic as DTRPrintable but for preview
-            // This is a simplified version - you can enhance it
-            g2d.setFont(new Font("Arial", Font.BOLD, 18));
-            g2d.drawString("TIME RECORD", 350, 30);
+            double margin = 40;
+            double x = margin;
+            double y = margin;
+            double pageWidth = getWidth() - 2 * margin;
             
-            g2d.setFont(new Font("Arial", Font.PLAIN, 14));
-            g2d.drawString(employeeName, 350, 60);
+            // Title
+            Font titleFont = new Font("Arial", Font.BOLD, 18);
+            g2d.setFont(titleFont);
+            FontMetrics titleMetrics = g2d.getFontMetrics();
+            String title = "TIME RECORD";
+            int titleWidth = titleMetrics.stringWidth(title);
+            g2d.drawString(title, (float)(x + (pageWidth - titleWidth) / 2), (float)y);
+            y += titleMetrics.getHeight() + 10;
             
-            String monthName = LocalDate.of(year, month, 1).format(DateTimeFormatter.ofPattern("MMMM"));
-            g2d.drawString("For the month of " + monthName.toUpperCase() + " " + year, 20, 90);
+            // Employee Name
+            Font nameFont = new Font("Arial", Font.PLAIN, 14);
+            g2d.setFont(nameFont);
+            FontMetrics nameMetrics = g2d.getFontMetrics();
+            int nameWidth = nameMetrics.stringWidth(employeeName);
+            g2d.drawString(employeeName, (float)(x + (pageWidth - nameWidth) / 2), (float)y);
+            y += nameMetrics.getHeight() + 15;
+            
+            // Period
+            String period;
+            if (startDate.getMonthValue() == endDate.getMonthValue() && 
+                startDate.getYear() == endDate.getYear() &&
+                startDate.getDayOfMonth() == 1 && 
+                endDate.getDayOfMonth() == endDate.lengthOfMonth()) {
+                String monthName = startDate.format(DateTimeFormatter.ofPattern("MMMM"));
+                period = "For the month of " + monthName.toUpperCase() + " " + startDate.getYear();
+            } else {
+                String startStr = startDate.format(DateTimeFormatter.ofPattern("MMMM d, yyyy"));
+                String endStr = endDate.format(DateTimeFormatter.ofPattern("MMMM d, yyyy"));
+                period = "For the period " + startStr.toUpperCase() + " to " + endStr.toUpperCase();
+            }
+            g2d.drawString(period, (float)x, (float)y);
+            y += nameMetrics.getHeight() + 5;
+            
+            g2d.drawString("Official hours for and departure", (float)x, (float)y);
+            y += nameMetrics.getHeight() + 5;
+            g2d.drawString("Regular days...", (float)x, (float)y);
+            y += nameMetrics.getHeight() + 5;
+            g2d.drawString("Saturdays...", (float)x, (float)y);
+            y += nameMetrics.getHeight() + 15;
+            
+            // Table header
+            Font tableFont = new Font("Arial", Font.PLAIN, 10);
+            g2d.setFont(tableFont);
+            FontMetrics tableMetrics = g2d.getFontMetrics();
+            double rowHeight = tableMetrics.getHeight() + 3;
+            
+            // Draw table lines
+            double tableX = x;
+            double tableY = y;
+            double col1Width = 40;  // DAY
+            double col2Width = 70;  // A.M. Arrival
+            double col3Width = 70;  // A.M. Departure
+            double col4Width = 70;  // P.M. Arrival
+            double col5Width = 70;  // P.M. Departure
+            double col6Width = 60;  // UNDERTIME Hours
+            double col7Width = 60;  // UNDERTIME Minutes
+            
+            // Draw header lines
+            g2d.setStroke(new java.awt.BasicStroke(1.5f));
+            g2d.drawLine((int)tableX, (int)tableY, (int)(tableX + col1Width + col2Width + col3Width + col4Width + col5Width + col6Width + col7Width), (int)tableY);
+            
+            // Header row
+            g2d.drawString("DAY", (float)tableX, (float)tableY);
+            g2d.drawString("A.M.", (float)(tableX + col1Width), (float)tableY);
+            g2d.drawString("P.M.", (float)(tableX + col1Width + col2Width + col3Width), (float)tableY);
+            g2d.drawString("UNDERTIME", (float)(tableX + col1Width + col2Width + col3Width + col4Width + col5Width), (float)tableY);
+            
+            tableY += rowHeight;
+            g2d.drawLine((int)tableX, (int)tableY, (int)(tableX + col1Width + col2Width + col3Width + col4Width + col5Width + col6Width + col7Width), (int)tableY);
+            
+            g2d.drawString("", (float)tableX, (float)tableY);
+            g2d.drawString("Arrival", (float)(tableX + col1Width), (float)tableY);
+            g2d.drawString("Departure", (float)(tableX + col1Width + col2Width), (float)tableY);
+            g2d.drawString("Arrival", (float)(tableX + col1Width + col2Width + col3Width), (float)tableY);
+            g2d.drawString("Departure", (float)(tableX + col1Width + col2Width + col3Width + col4Width), (float)tableY);
+            g2d.drawString("Hours", (float)(tableX + col1Width + col2Width + col3Width + col4Width + col5Width), (float)tableY);
+            g2d.drawString("Minutes", (float)(tableX + col1Width + col2Width + col3Width + col4Width + col5Width + col6Width), (float)tableY);
+            
+            tableY += rowHeight;
+            g2d.setStroke(new java.awt.BasicStroke(1.0f));
+            g2d.drawLine((int)tableX, (int)tableY, (int)(tableX + col1Width + col2Width + col3Width + col4Width + col5Width + col6Width + col7Width), (int)tableY);
+            
+            // Create a map of logs by date
+            java.util.Map<LocalDate, AttendanceLog> logMap = new java.util.HashMap<>();
+            for (AttendanceLog log : logs) {
+                LocalDate logDate = log.getLogDate().toLocalDate();
+                if (!logDate.isBefore(startDate) && !logDate.isAfter(endDate)) {
+                    logMap.put(logDate, log);
+                }
+            }
+            
+            // Draw table data for each day in the date range
+            LocalDate currentDate = startDate;
+            while (!currentDate.isAfter(endDate)) {
+                int day = currentDate.getDayOfMonth();
+                DayOfWeek dayOfWeek = currentDate.getDayOfWeek();
+                
+                // Draw horizontal line for each row
+                g2d.drawLine((int)tableX, (int)tableY, (int)(tableX + col1Width + col2Width + col3Width + col4Width + col5Width + col6Width + col7Width), (int)tableY);
+                
+                // Day number
+                g2d.drawString(String.valueOf(day), (float)(tableX + 5), (float)tableY);
+                
+                AttendanceLog log = logMap.get(currentDate);
+                
+                if (dayOfWeek == DayOfWeek.SATURDAY) {
+                    g2d.drawString("SATURDAY", (float)(tableX + col1Width + 5), (float)tableY);
+                } else if (dayOfWeek == DayOfWeek.SUNDAY) {
+                    g2d.drawString("SUNDAY", (float)(tableX + col1Width + 5), (float)tableY);
+                } else if (log != null) {
+                    // A.M. Arrival
+                    if (log.getMorningClockIn() != null) {
+                        String time = formatTime(log.getMorningClockIn());
+                        g2d.drawString(time, (float)(tableX + col1Width + 5), (float)tableY);
+                    }
+                    
+                    // A.M. Departure
+                    if (log.getMorningClockOut() != null) {
+                        String time = formatTime(log.getMorningClockOut());
+                        g2d.drawString(time, (float)(tableX + col1Width + col2Width + 5), (float)tableY);
+                    }
+                    
+                    // P.M. Arrival
+                    if (log.getAfternoonClockIn() != null) {
+                        String time = formatTime(log.getAfternoonClockIn());
+                        g2d.drawString(time, (float)(tableX + col1Width + col2Width + col3Width + 5), (float)tableY);
+                    }
+                    
+                    // P.M. Departure
+                    if (log.getAfternoonClockOut() != null) {
+                        String time = formatTime(log.getAfternoonClockOut());
+                        g2d.drawString(time, (float)(tableX + col1Width + col2Width + col3Width + col4Width + 5), (float)tableY);
+                    }
+                    
+                    // UNDERTIME columns are left blank for now
+                }
+                
+                tableY += rowHeight;
+                
+                // Move to next day
+                currentDate = currentDate.plusDays(1);
+                
+                // Check if we need more space
+                if (tableY > getHeight() - 200) {
+                    // Would need to handle scrolling or page breaks
+                    break;
+                }
+            }
+            
+            // Draw final line
+            g2d.setStroke(new java.awt.BasicStroke(1.5f));
+            g2d.drawLine((int)tableX, (int)tableY, (int)(tableX + col1Width + col2Width + col3Width + col4Width + col5Width + col6Width + col7Width), (int)tableY);
+            
+            // Total line
+            tableY += rowHeight;
+            g2d.setFont(tableFont);
+            g2d.drawString("TOTAL", (float)(tableX + 5), (float)tableY);
+            
+            // Certification
+            tableY += rowHeight * 2;
+            String certText = "I CERTIFY on my honor that the above is a true and correct report of the hours of work performed, record of which was made daily at the time of arrival at the departure from the office.";
+            drawWrappedText(g2d, certText, (float)x, (float)tableY, (float)(pageWidth - 2 * margin), tableFont);
+            tableY += rowHeight * 3;
+            
+            g2d.drawString("Verified as prescribed office hours", (float)x, (float)tableY);
+            tableY += rowHeight * 2;
+            
+            // Signature line
+            g2d.drawString("_________________________", (float)x, (float)tableY);
+            tableY += rowHeight;
+            g2d.drawString("Punong Barangay", (float)x, (float)tableY);
+            
+            // Update preferred size based on content
+            setPreferredSize(new Dimension(getWidth(), (int)tableY + 50));
+        }
+        
+        private String formatTime(Time time) {
+            if (time == null) return "";
+            return time.toString().substring(0, 5); // HH:mm format
+        }
+        
+        private void drawWrappedText(Graphics2D g2d, String text, float x, float y, float maxWidth, Font font) {
+            String[] words = text.split(" ");
+            StringBuilder line = new StringBuilder();
+            float currentY = y;
+            
+            for (String word : words) {
+                String testLine = line.length() == 0 ? word : line + " " + word;
+                float width = g2d.getFontMetrics(font).stringWidth(testLine);
+                
+                if (width > maxWidth && line.length() > 0) {
+                    g2d.drawString(line.toString(), x, currentY);
+                    line = new StringBuilder(word);
+                    currentY += g2d.getFontMetrics(font).getHeight();
+                } else {
+                    line = new StringBuilder(testLine);
+                }
+            }
+            if (line.length() > 0) {
+                g2d.drawString(line.toString(), x, currentY);
+            }
         }
     }
 }
