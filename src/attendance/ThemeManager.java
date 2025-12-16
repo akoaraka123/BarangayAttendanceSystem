@@ -1,6 +1,7 @@
 package attendance;
 
 import javax.swing.*;
+import javax.swing.text.*;
 import java.awt.*;
 
 public class ThemeManager {
@@ -275,6 +276,90 @@ public class ThemeManager {
         textField.setBackground(Color.WHITE);
         // Ensure text is fully visible - use LEFT alignment
         textField.setHorizontalAlignment(JTextField.LEFT);
+        
+        // Apply input filter based on title/message to prevent special characters
+        // Determine filter type from title/message
+        DocumentFilter filter = null;
+        String lowerTitle = title.toLowerCase();
+        String lowerMessage = message.toLowerCase();
+        
+        if (lowerTitle.contains("name") || lowerMessage.contains("name")) {
+            // Allow ñ for Filipino names
+            filter = InputFilter.createLettersOnlyFilter();
+        } else if (lowerTitle.contains("address") || lowerMessage.contains("address")) {
+            // Allow ñ for Filipino addresses
+            filter = InputFilter.createAddressFilter();
+        } else if (lowerTitle.contains("position") || lowerMessage.contains("position")) {
+            // Allow ñ for positions
+            filter = InputFilter.createLettersOnlyFilter();
+        } else if (lowerTitle.contains("contact") || lowerMessage.contains("contact") || lowerMessage.contains("phone")) {
+            // For contact numbers, allow + and numbers only
+            filter = new javax.swing.text.DocumentFilter() {
+                @Override
+                public void insertString(FilterBypass fb, int offset, String string, AttributeSet attr) throws BadLocationException {
+                    if (string == null) return;
+                    String filtered = string.replaceAll("[^0-9+\\-\\s]", "");
+                    if (!filtered.isEmpty()) {
+                        super.insertString(fb, offset, filtered, attr);
+                    }
+                }
+                @Override
+                public void replace(FilterBypass fb, int offset, int length, String text, AttributeSet attrs) throws BadLocationException {
+                    if (text == null) return;
+                    String filtered = text.replaceAll("[^0-9+\\-\\s]", "");
+                    if (!filtered.isEmpty() || length > 0) {
+                        super.replace(fb, offset, length, filtered, attrs);
+                    }
+                }
+            };
+        } else if (lowerTitle.contains("email") || lowerMessage.contains("email")) {
+            // For email, allow @ and . but filter other special characters
+            filter = new javax.swing.text.DocumentFilter() {
+                @Override
+                public void insertString(FilterBypass fb, int offset, String string, AttributeSet attr) throws BadLocationException {
+                    if (string == null) return;
+                    String filtered = string.replaceAll("[^A-Za-z0-9@.\\-_]", "");
+                    if (!filtered.isEmpty()) {
+                        super.insertString(fb, offset, filtered, attr);
+                    }
+                }
+                @Override
+                public void replace(FilterBypass fb, int offset, int length, String text, AttributeSet attrs) throws BadLocationException {
+                    if (text == null) return;
+                    String filtered = text.replaceAll("[^A-Za-z0-9@.\\-_]", "");
+                    if (!filtered.isEmpty() || length > 0) {
+                        super.replace(fb, offset, length, filtered, attrs);
+                    }
+                }
+            };
+        } else if (lowerTitle.contains("year") || lowerMessage.contains("year")) {
+            // For year, numbers only
+            filter = new javax.swing.text.DocumentFilter() {
+                @Override
+                public void insertString(FilterBypass fb, int offset, String string, AttributeSet attr) throws BadLocationException {
+                    if (string == null) return;
+                    String filtered = string.replaceAll("[^0-9]", "");
+                    if (!filtered.isEmpty()) {
+                        super.insertString(fb, offset, filtered, attr);
+                    }
+                }
+                @Override
+                public void replace(FilterBypass fb, int offset, int length, String text, AttributeSet attrs) throws BadLocationException {
+                    if (text == null) return;
+                    String filtered = text.replaceAll("[^0-9]", "");
+                    if (!filtered.isEmpty() || length > 0) {
+                        super.replace(fb, offset, length, filtered, attrs);
+                    }
+                }
+            };
+        } else {
+            // Default: alphanumeric and basic punctuation
+            filter = InputFilter.createAddressFilter();
+        }
+        
+        if (filter != null && textField.getDocument() instanceof javax.swing.text.AbstractDocument) {
+            ((javax.swing.text.AbstractDocument) textField.getDocument()).setDocumentFilter(filter);
+        }
         
         mainPanel.add(label, BorderLayout.NORTH);
         mainPanel.add(textField, BorderLayout.CENTER);

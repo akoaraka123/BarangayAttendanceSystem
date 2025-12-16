@@ -15,6 +15,7 @@ import java.util.Map;
 public class AdminDashboardFrame extends JFrame {
     private JButton btnRegister, btnViewLogs, btnViewEmployees, btnRemove, btnChangePassword;
     private JButton btnExportAttendance, btnExportEmployees, btnGenerateReport, btnViewStatistics, btnDTR, btnLogout;
+    private JButton btnUserManagement, btnAddDepartment, btnViewDepartment;
 
     public AdminDashboardFrame() {
         setTitle("Admin Dashboard");
@@ -27,12 +28,28 @@ public class AdminDashboardFrame extends JFrame {
         headerPanel.setPreferredSize(new Dimension(800, 120));
         headerPanel.setLayout(new BorderLayout());
         
-        // Welcome text in the header (large, full screen size)
-        JLabel headerLabel = new JLabel("Welcome to Admin Dashboard");
-        headerLabel.setFont(new Font("Segoe UI", Font.BOLD, 48)); // Large font size
+        // Top panel for "BARANGAY ATTENDANCE SYSTEM" title - full width, large text
+        JPanel topTitlePanel = new JPanel(new BorderLayout());
+        topTitlePanel.setOpaque(false);
+        topTitlePanel.setBorder(BorderFactory.createEmptyBorder(10, 20, 5, 20));
+        JLabel systemTitleLabel = new JLabel("BARANGAY ATTENDANCE SYSTEM");
+        systemTitleLabel.setFont(new Font("Segoe UI", Font.BOLD, 32)); // Large font size
+        systemTitleLabel.setForeground(Color.WHITE);
+        systemTitleLabel.setHorizontalAlignment(SwingConstants.CENTER);
+        topTitlePanel.add(systemTitleLabel, BorderLayout.CENTER);
+        headerPanel.add(topTitlePanel, BorderLayout.NORTH);
+        
+        // Bottom panel for "Welcome to Admin Dashboard" on the left
+        JPanel bottomHeaderPanel = new JPanel(new BorderLayout());
+        bottomHeaderPanel.setOpaque(false);
+        bottomHeaderPanel.setBorder(BorderFactory.createEmptyBorder(5, 20, 10, 20));
+        
+        // Admin text on the left side (white color)
+        JLabel headerLabel = new JLabel("Admin");
+        headerLabel.setFont(new Font("Segoe UI", Font.BOLD, 36));
         headerLabel.setForeground(Color.WHITE);
-        headerLabel.setHorizontalAlignment(SwingConstants.CENTER);
-        headerPanel.add(headerLabel, BorderLayout.CENTER);
+        headerLabel.setHorizontalAlignment(SwingConstants.LEFT);
+        bottomHeaderPanel.add(headerLabel, BorderLayout.WEST);
         
         // Logout button on the right
         btnLogout = new JButton("🚪 Logout");
@@ -41,7 +58,9 @@ public class AdminDashboardFrame extends JFrame {
         JPanel logoutPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         logoutPanel.setOpaque(false);
         logoutPanel.add(btnLogout);
-        headerPanel.add(logoutPanel, BorderLayout.EAST);
+        bottomHeaderPanel.add(logoutPanel, BorderLayout.EAST);
+        
+        headerPanel.add(bottomHeaderPanel, BorderLayout.CENTER);
 
         // ====== Sidebar Panel ======
         JPanel sidebarPanel = new JPanel();
@@ -60,6 +79,9 @@ public class AdminDashboardFrame extends JFrame {
         btnRegister = new JButton("👤 Register Employee");
         btnViewLogs = new JButton("📋 View Attendance Logs");
         btnViewEmployees = new JButton("👥 View & Edit Employees");
+        btnUserManagement = new JButton("👥 User Management");
+        btnAddDepartment = new JButton("➕ Add Department");
+        btnViewDepartment = new JButton("🏢 View Department");
         btnRemove = new JButton("🗑️ Remove Employee");
         btnChangePassword = new JButton("🔐 Change Password");
         btnExportAttendance = new JButton("📊 Export Attendance (CSV)");
@@ -74,6 +96,9 @@ public class AdminDashboardFrame extends JFrame {
         ThemeManager.styleButton(btnRegister);
         ThemeManager.styleButton(btnViewLogs);
         ThemeManager.styleButton(btnViewEmployees);
+        ThemeManager.styleButton(btnUserManagement);
+        ThemeManager.styleButton(btnAddDepartment);
+        ThemeManager.styleButton(btnViewDepartment);
         ThemeManager.styleDangerButton(btnRemove);
         ThemeManager.styleButton(btnChangePassword);
         ThemeManager.styleSuccessButton(btnExportAttendance);
@@ -82,7 +107,8 @@ public class AdminDashboardFrame extends JFrame {
         ThemeManager.styleButton(btnViewStatistics);
         ThemeManager.styleButton(btnDTR);
         
-        JButton[] buttons = {btnRegister, btnViewLogs, btnViewEmployees, btnRemove, 
+        JButton[] buttons = {btnRegister, btnViewLogs, btnViewEmployees, btnUserManagement, 
+                            btnAddDepartment, btnViewDepartment, btnRemove, 
                             btnChangePassword, btnExportAttendance, btnExportEmployees, 
                             btnGenerateReport, btnViewStatistics, btnDTR};
         
@@ -168,16 +194,16 @@ public class AdminDashboardFrame extends JFrame {
                     int panelWidth = getWidth();
                     int panelHeight = getHeight();
                     
-                    // Calculate logo size (make it full screen - very large)
+                    // Calculate logo size (make it very large - almost full screen)
                     int logoWidth = logoImage.getWidth(this);
                     int logoHeight = logoImage.getHeight(this);
                     
-                    // Scale logo to be almost full screen (about 90% of panel width/height, maintain aspect ratio)
-                    double scale = Math.min((panelWidth * 0.9) / logoWidth, (panelHeight * 0.85) / logoHeight);
+                    // Scale logo to be very large (95% of panel width/height, maintain aspect ratio)
+                    double scale = Math.min((panelWidth * 0.95) / logoWidth, (panelHeight * 0.95) / logoHeight);
                     int scaledWidth = (int) (logoWidth * scale);
                     int scaledHeight = (int) (logoHeight * scale);
                     
-                    // Position logo at the center
+                    // Position logo at the center (perfectly centered)
                     int x = (panelWidth - scaledWidth) / 2;
                     int y = (panelHeight - scaledHeight) / 2;
                     
@@ -223,6 +249,9 @@ public class AdminDashboardFrame extends JFrame {
         btnRegister.addActionListener(e -> registerEmployee());
         btnViewLogs.addActionListener(e -> viewLogs());
         btnViewEmployees.addActionListener(e -> viewEmployees());
+        btnUserManagement.addActionListener(e -> new UserManagementFrame().setVisible(true));
+        btnAddDepartment.addActionListener(e -> new DepartmentManagementFrame().setVisible(true));
+        btnViewDepartment.addActionListener(e -> new DepartmentManagementFrame().setVisible(true));
         btnRemove.addActionListener(e -> removeEmployee());
         btnChangePassword.addActionListener(e -> new ChangePasswordFrame().setVisible(true));
         btnExportAttendance.addActionListener(e -> exportAttendance());
@@ -327,8 +356,16 @@ public class AdminDashboardFrame extends JFrame {
             return;
         }
 
+        // Clear previous error message
+        DatabaseOperations.setLastErrorMessage("");
+        
         // Auto-generate RFID Card ID / Barcode
         String rfidCardId = DatabaseOperations.generateUniqueRFIDCardIdForEmployee(empId);
+        
+        if (rfidCardId == null || rfidCardId.trim().isEmpty()) {
+            showLargeErrorDialog(this, "Error generating RFID Card ID. Please try again.", "Error");
+            return;
+        }
         
         // Register employee
         if (DatabaseOperations.registerEmployee(empId, fullName, contact, address, position, rfidCardId)) {
@@ -393,7 +430,12 @@ public class AdminDashboardFrame extends JFrame {
                 BarcodePrinter.printBarcode(rfidCardId, fullName, empId);
             }
         } else {
-            showLargeErrorDialog(this, "Error registering employee!", "Error");
+            String errorMsg = "Error registering employee!";
+            String detailedError = DatabaseOperations.getLastErrorMessage();
+            if (detailedError != null && !detailedError.isEmpty()) {
+                errorMsg += "\n\nDetails: " + detailedError;
+            }
+            showLargeErrorDialog(this, errorMsg, "Error");
         }
     }
 

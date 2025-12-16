@@ -51,33 +51,83 @@ public class InputValidator {
     }
     
     /**
-     * Validate name (letters, spaces, hyphens, apostrophes only)
+     * Validate name (letters including ñ, spaces, hyphens, apostrophes only)
      */
     public static boolean isValidName(String name) {
         if (name == null || name.trim().isEmpty()) {
             return false;
         }
-        return name.trim().matches("^[A-Za-z\\s\\-']{2,50}$");
+        // Allow: letters (including ñ), spaces, hyphens, apostrophes, commas
+        return name.trim().matches("^[A-Za-zñÑ\\s\\-',]{2,50}$");
     }
     
     /**
-     * Validate address (basic validation)
+     * Validate address (letters including ñ, numbers, spaces, commas, periods, hyphens only - no special characters)
      */
     public static boolean isValidAddress(String address) {
         if (address == null || address.trim().isEmpty()) {
             return false;
         }
-        return address.trim().length() >= 5 && address.trim().length() <= 200;
+        String trimmed = address.trim();
+        if (trimmed.length() < 5 || trimmed.length() > 200) {
+            return false;
+        }
+        // Allow: letters (including ñ), numbers, spaces, commas, periods, hyphens, apostrophes
+        return trimmed.matches("^[A-Za-zñÑ0-9\\s,\\.\\-']+$");
     }
     
     /**
-     * Validate position (basic validation)
+     * Validate position (letters including ñ and spaces only - no special characters)
      */
     public static boolean isValidPosition(String position) {
         if (position == null || position.trim().isEmpty()) {
             return false;
         }
-        return position.trim().matches("^[A-Za-z\\s]{2,30}$");
+        // Allow: letters (including ñ) and spaces
+        return position.trim().matches("^[A-Za-zñÑ\\s]{2,30}$");
+    }
+    
+    /**
+     * Validate department name (letters including ñ, numbers, spaces only - no special characters)
+     */
+    public static boolean isValidDepartmentName(String name) {
+        if (name == null || name.trim().isEmpty()) {
+            return false;
+        }
+        // Allow: letters (including ñ), numbers, spaces
+        return name.trim().matches("^[A-Za-zñÑ0-9\\s]{2,100}$");
+    }
+    
+    /**
+     * Validate description (letters including ñ, numbers, spaces, basic punctuation only)
+     */
+    public static boolean isValidDescription(String description) {
+        if (description == null || description.trim().isEmpty()) {
+            return true; // Description is optional
+        }
+        // Allow: letters (including ñ), numbers, spaces, commas, periods, hyphens, apostrophes
+        return description.trim().matches("^[A-Za-zñÑ0-9\\s,\\.\\-']{0,500}$");
+    }
+    
+    /**
+     * Check if string contains special characters (excluding allowed ones)
+     */
+    public static boolean containsSpecialCharacters(String text, String allowedPattern) {
+        if (text == null || text.trim().isEmpty()) {
+            return false;
+        }
+        // Remove allowed characters and check if anything remains
+        String cleaned = text.replaceAll(allowedPattern, "");
+        return !cleaned.isEmpty();
+    }
+    
+    /**
+     * Remove special characters from string (keep only letters, numbers, spaces, and basic punctuation)
+     */
+    public static String removeSpecialCharacters(String text) {
+        if (text == null) return "";
+        // Keep: letters, numbers, spaces, commas, periods, hyphens, apostrophes
+        return text.replaceAll("[^A-Za-z0-9\\s,\\.\\-']", "");
     }
     
     /**
@@ -140,7 +190,10 @@ public class InputValidator {
             return "Address is required";
         }
         if (!isValidAddress(address)) {
-            return "Address must be 5-200 characters long";
+            if (address.trim().length() < 5 || address.trim().length() > 200) {
+                return "Address must be 5-200 characters long";
+            }
+            return "Address should only contain letters, numbers, spaces, commas, periods, and hyphens. Special characters are not allowed.";
         }
         return "";
     }
@@ -153,7 +206,36 @@ public class InputValidator {
             return "Position is required";
         }
         if (!isValidPosition(position)) {
-            return "Position should only contain letters and spaces";
+            return "Position should only contain letters and spaces. Special characters are not allowed.";
+        }
+        return "";
+    }
+    
+    /**
+     * Get validation error message for department name
+     */
+    public static String getDepartmentNameErrorMessage(String name) {
+        if (name == null || name.trim().isEmpty()) {
+            return "Department name is required";
+        }
+        if (!isValidDepartmentName(name)) {
+            if (name.trim().length() < 2 || name.trim().length() > 100) {
+                return "Department name must be 2-100 characters long";
+            }
+            return "Department name should only contain letters, numbers, and spaces. Special characters are not allowed.";
+        }
+        return "";
+    }
+    
+    /**
+     * Get validation error message for description
+     */
+    public static String getDescriptionErrorMessage(String description) {
+        if (description != null && !description.trim().isEmpty() && !isValidDescription(description)) {
+            if (description.trim().length() > 500) {
+                return "Description must be 500 characters or less";
+            }
+            return "Description should only contain letters, numbers, spaces, commas, periods, and hyphens. Special characters are not allowed.";
         }
         return "";
     }

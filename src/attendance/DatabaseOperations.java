@@ -13,6 +13,8 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 
 public class DatabaseOperations {
     
@@ -29,7 +31,7 @@ public class DatabaseOperations {
             dbEmail = "employee@barangay.com";
         }
         
-        String sql = "SELECT password, role FROM users WHERE email = ?";
+        String sql = "SELECT password, role FROM users WHERE email = ? AND deleted_at IS NULL";
         try (Connection conn = DBConnection.getConnection();
              PreparedStatement pst = conn.prepareStatement(sql)) {
             
@@ -86,7 +88,7 @@ public class DatabaseOperations {
     }
     
     public static boolean userExists(String email) {
-        String sql = "SELECT id FROM users WHERE email = ?";
+        String sql = "SELECT id FROM users WHERE email = ? AND deleted_at IS NULL";
         try (Connection conn = DBConnection.getConnection();
              PreparedStatement pst = conn.prepareStatement(sql)) {
             
@@ -149,6 +151,374 @@ public class DatabaseOperations {
         return null;
     }
     
+    // ===== USER MANAGEMENT OPERATIONS =====
+    
+    // User class to hold user data
+    public static class User {
+        private int id;
+        private String email;
+        private String role;
+        private java.sql.Timestamp createdAt;
+        private java.sql.Timestamp deletedAt;
+        private boolean isDeleted;
+        
+        public User(int id, String email, String role, java.sql.Timestamp createdAt, java.sql.Timestamp deletedAt) {
+            this.id = id;
+            this.email = email;
+            this.role = role;
+            this.createdAt = createdAt;
+            this.deletedAt = deletedAt;
+            this.isDeleted = deletedAt != null;
+        }
+        
+        public int getId() { return id; }
+        public String getEmail() { return email; }
+        public String getRole() { return role; }
+        public java.sql.Timestamp getCreatedAt() { return createdAt; }
+        public java.sql.Timestamp getDeletedAt() { return deletedAt; }
+        public boolean isDeleted() { return isDeleted; }
+    }
+    
+    // Get all users (including deleted ones for recovery)
+    public static List<User> getAllUsers(boolean includeDeleted) {
+        List<User> users = new ArrayList<>();
+        String sql = includeDeleted 
+            ? "SELECT id, email, role, created_at, deleted_at FROM users ORDER BY deleted_at IS NULL DESC, created_at DESC"
+            : "SELECT id, email, role, created_at, deleted_at FROM users WHERE deleted_at IS NULL ORDER BY created_at DESC";
+        
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement pst = conn.prepareStatement(sql);
+             ResultSet rs = pst.executeQuery()) {
+            
+            while (rs.next()) {
+                users.add(new User(
+                    rs.getInt("id"),
+                    rs.getString("email"),
+                    rs.getString("role"),
+                    rs.getTimestamp("created_at"),
+                    rs.getTimestamp("deleted_at")
+                ));
+            }
+        } catch (SQLException e) {
+            System.err.println("Error getting users: " + e.getMessage());
+        }
+        return users;
+    }
+    
+    // Update user (email and role only, not password)
+    public static boolean updateUser(int userId, String email, String role) {
+        // Protect admin@barangay.com from being edited
+        String sqlCheck = "SELECT email FROM users WHERE id = ?";
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement pstCheck = conn.prepareStatement(sqlCheck)) {
+            
+            pstCheck.setInt(1, userId);
+            ResultSet rs = pstCheck.executeQuery();
+            if (rs.next()) {
+                String currentEmail = rs.getString("email");
+                if ("admin@barangay.com".equalsIgnoreCase(currentEmail)) {
+                    System.err.println("Cannot edit protected admin account");
+                    return false;
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("Error checking user: " + e.getMessage());
+            return false;
+        }
+        
+        // Check if new email already exists (excluding current user)
+        String sqlCheckEmail = "SELECT id FROM users WHERE email = ? AND id != ? AND deleted_at IS NULL";
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement pstCheck = conn.prepareStatement(sqlCheckEmail)) {
+            
+            pstCheck.setString(1, email);
+            pstCheck.setInt(2, userId);
+            ResultSet rs = pstCheck.executeQuery();
+            if (rs.next()) {
+                System.err.println("Email already exists");
+                return false;
+            }
+        } catch (SQLException e) {
+            System.err.println("Error checking email: " + e.getMessage());
+            return false;
+        }
+        
+        // Update user
+        String sql = "UPDATE users SET email = ?, role = ? WHERE id = ? AND deleted_at IS NULL";
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement pst = conn.prepareStatement(sql)) {
+            
+            pst.setString(1, email);
+            pst.setString(2, role);
+            pst.setInt(3, userId);
+            
+            int result = pst.executeUpdate();
+            return result > 0;
+        } catch (SQLException e) {
+            System.err.println("Error updating user: " + e.getMessage());
+            return false;
+        }
+    }
+    
+    // Soft delete user (set deleted_at timestamp)
+    public static boolean deleteUser(int userId) {
+        // Protect admin@barangay.com from being deleted
+        String sqlCheck = "SELECT email FROM users WHERE id = ?";
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement pstCheck = conn.prepareStatement(sqlCheck)) {
+            
+            pstCheck.setInt(1, userId);
+            ResultSet rs = pstCheck.executeQuery();
+            if (rs.next()) {
+                String email = rs.getString("email");
+                if ("admin@barangay.com".equalsIgnoreCase(email)) {
+                    System.err.println("Cannot delete protected admin account");
+                    return false;
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("Error checking user: " + e.getMessage());
+            return false;
+        }
+        
+        // Soft delete - set deleted_at timestamp
+        String sql = "UPDATE users SET deleted_at = CURRENT_TIMESTAMP WHERE id = ? AND deleted_at IS NULL";
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement pst = conn.prepareStatement(sql)) {
+            
+            pst.setInt(1, userId);
+            int result = pst.executeUpdate();
+            return result > 0;
+        } catch (SQLException e) {
+            System.err.println("Error deleting user: " + e.getMessage());
+            return false;
+        }
+    }
+    
+    // Recover deleted user (remove deleted_at timestamp)
+    public static boolean recoverUser(int userId) {
+        String sql = "UPDATE users SET deleted_at = NULL WHERE id = ? AND deleted_at IS NOT NULL";
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement pst = conn.prepareStatement(sql)) {
+            
+            pst.setInt(1, userId);
+            int result = pst.executeUpdate();
+            return result > 0;
+        } catch (SQLException e) {
+            System.err.println("Error recovering user: " + e.getMessage());
+            return false;
+        }
+    }
+    
+    // Create new user (for user management)
+    public static boolean createUserForManagement(String email, String password, String role) {
+        // Check if user already exists (including deleted)
+        String sqlCheck = "SELECT id, deleted_at FROM users WHERE email = ?";
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement pstCheck = conn.prepareStatement(sqlCheck)) {
+            
+            pstCheck.setString(1, email);
+            ResultSet rs = pstCheck.executeQuery();
+            if (rs.next()) {
+                // If user exists but is deleted, recover it instead
+                if (rs.getTimestamp("deleted_at") != null) {
+                    int userId = rs.getInt("id");
+                    if (recoverUser(userId)) {
+                        // Update password and role
+                        String sqlUpdate = "UPDATE users SET password = ?, role = ? WHERE id = ?";
+                        try (PreparedStatement pstUpdate = conn.prepareStatement(sqlUpdate)) {
+                            pstUpdate.setString(1, PasswordUtils.hashPassword(password));
+                            pstUpdate.setString(2, role);
+                            pstUpdate.setInt(3, userId);
+                            return pstUpdate.executeUpdate() > 0;
+                        }
+                    }
+                }
+                return false; // User exists and is not deleted
+            }
+        } catch (SQLException e) {
+            System.err.println("Error checking user existence: " + e.getMessage());
+            return false;
+        }
+        
+        // Create new user
+        return createUser(email, password, role);
+    }
+    
+    // ===== DEPARTMENT OPERATIONS =====
+    
+    // Department class to hold department data
+    public static class Department {
+        private int id;
+        private String name;
+        private String description;
+        private java.sql.Timestamp createdAt;
+        private int employeeCount;
+        
+        public Department(int id, String name, String description, java.sql.Timestamp createdAt, int employeeCount) {
+            this.id = id;
+            this.name = name;
+            this.description = description;
+            this.createdAt = createdAt;
+            this.employeeCount = employeeCount;
+        }
+        
+        public int getId() { return id; }
+        public String getName() { return name; }
+        public String getDescription() { return description; }
+        public java.sql.Timestamp getCreatedAt() { return createdAt; }
+        public int getEmployeeCount() { return employeeCount; }
+    }
+    
+    // Get all departments with employee count
+    public static List<Department> getAllDepartments() {
+        List<Department> departments = new ArrayList<>();
+        String sql = "SELECT d.id, d.department_name, d.description, d.created_at, " +
+                     "COUNT(e.id) as employee_count " +
+                     "FROM departments d " +
+                     "LEFT JOIN employees e ON d.id = e.department_id " +
+                     "GROUP BY d.id, d.department_name, d.description, d.created_at " +
+                     "ORDER BY d.department_name";
+        
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement pst = conn.prepareStatement(sql);
+             ResultSet rs = pst.executeQuery()) {
+            
+            while (rs.next()) {
+                departments.add(new Department(
+                    rs.getInt("id"),
+                    rs.getString("department_name"),
+                    rs.getString("description"),
+                    rs.getTimestamp("created_at"),
+                    rs.getInt("employee_count")
+                ));
+            }
+        } catch (SQLException e) {
+            System.err.println("Error getting departments: " + e.getMessage());
+        }
+        return departments;
+    }
+    
+    // Get department names for dropdown (returns map of id -> name)
+    public static Map<Integer, String> getDepartmentMap() {
+        Map<Integer, String> departmentMap = new HashMap<>();
+        String sql = "SELECT id, department_name FROM departments ORDER BY department_name";
+        
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement pst = conn.prepareStatement(sql);
+             ResultSet rs = pst.executeQuery()) {
+            
+            while (rs.next()) {
+                departmentMap.put(rs.getInt("id"), rs.getString("department_name"));
+            }
+        } catch (SQLException e) {
+            System.err.println("Error getting department map: " + e.getMessage());
+        }
+        return departmentMap;
+    }
+    
+    // Create department
+    public static boolean createDepartment(String name, String description) {
+        String sql = "INSERT INTO departments (department_name, description) VALUES (?, ?)";
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement pst = conn.prepareStatement(sql)) {
+            
+            pst.setString(1, name.trim());
+            pst.setString(2, description != null ? description.trim() : null);
+            
+            int result = pst.executeUpdate();
+            return result > 0;
+        } catch (SQLException e) {
+            System.err.println("Error creating department: " + e.getMessage());
+            return false;
+        }
+    }
+    
+    // Update department
+    public static boolean updateDepartment(int id, String name, String description) {
+        String sql = "UPDATE departments SET department_name = ?, description = ? WHERE id = ?";
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement pst = conn.prepareStatement(sql)) {
+            
+            pst.setString(1, name.trim());
+            pst.setString(2, description != null ? description.trim() : null);
+            pst.setInt(3, id);
+            
+            int result = pst.executeUpdate();
+            return result > 0;
+        } catch (SQLException e) {
+            System.err.println("Error updating department: " + e.getMessage());
+            return false;
+        }
+    }
+    
+    // Delete department (only if no employees assigned)
+    public static boolean deleteDepartment(int id) {
+        // Check if department has employees
+        String checkSql = "SELECT COUNT(*) as count FROM employees WHERE department_id = ?";
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement pst = conn.prepareStatement(checkSql)) {
+            
+            pst.setInt(1, id);
+            ResultSet rs = pst.executeQuery();
+            
+            if (rs.next() && rs.getInt("count") > 0) {
+                System.err.println("Cannot delete department with assigned employees");
+                return false;
+            }
+        } catch (SQLException e) {
+            System.err.println("Error checking department: " + e.getMessage());
+            return false;
+        }
+        
+        // Delete department
+        String sql = "DELETE FROM departments WHERE id = ?";
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement pst = conn.prepareStatement(sql)) {
+            
+            pst.setInt(1, id);
+            int result = pst.executeUpdate();
+            return result > 0;
+        } catch (SQLException e) {
+            System.err.println("Error deleting department: " + e.getMessage());
+            return false;
+        }
+    }
+    
+    // Get employees by department
+    public static List<Employee> getEmployeesByDepartment(int departmentId) {
+        List<Employee> employees = new ArrayList<>();
+        String sql = "SELECT * FROM employees WHERE department_id = ? ORDER BY full_name";
+        
+        try (Connection conn = DBConnection.getConnection();
+             PreparedStatement pst = conn.prepareStatement(sql)) {
+            
+            pst.setInt(1, departmentId);
+            ResultSet rs = pst.executeQuery();
+            
+            while (rs.next()) {
+                String rfidCardId = null;
+                try {
+                    rfidCardId = rs.getString("rfid_card_id");
+                } catch (SQLException e) {
+                    // Column might not exist, ignore
+                }
+                
+                employees.add(new Employee(
+                    rs.getString("employee_id"),
+                    rs.getString("full_name"),
+                    rs.getString("contact_number"),
+                    rs.getString("address"),
+                    rs.getString("position"),
+                    rfidCardId
+                ));
+            }
+        } catch (SQLException e) {
+            System.err.println("Error getting employees by department: " + e.getMessage());
+        }
+        return employees;
+    }
+    
     // ===== EMPLOYEE OPERATIONS =====
     public static boolean registerEmployee(String empId, String fullName, String contact, String address, String position) {
         // Auto-generate RFID Card ID
@@ -157,7 +527,8 @@ public class DatabaseOperations {
     }
     
     public static boolean registerEmployee(String empId, String fullName, String contact, String address, String position, String rfidCardId) {
-        String sql = "INSERT INTO employees (employee_id, full_name, contact_number, address, position, rfid_card_id) VALUES (?, ?, ?, ?, ?, ?)";
+        // Check if department_id column exists, if yes include it in INSERT
+        String sql = "INSERT INTO employees (employee_id, full_name, contact_number, address, position, rfid_card_id, department_id) VALUES (?, ?, ?, ?, ?, ?, ?)";
         try (Connection conn = DBConnection.getConnection();
              PreparedStatement pst = conn.prepareStatement(sql)) {
             
@@ -167,13 +538,51 @@ public class DatabaseOperations {
             pst.setString(4, address);
             pst.setString(5, position);
             pst.setString(6, rfidCardId != null && !rfidCardId.trim().isEmpty() ? rfidCardId.trim().toUpperCase() : null);
+            pst.setNull(7, java.sql.Types.INTEGER); // department_id is NULL by default
             
             int result = pst.executeUpdate();
             return result > 0;
         } catch (SQLException e) {
-            System.err.println("Error registering employee: " + e.getMessage());
-            return false;
+            // If error is about unknown column, try without department_id
+            if (e.getMessage().contains("Unknown column 'department_id'")) {
+                try (Connection conn = DBConnection.getConnection()) {
+                    String sqlWithoutDept = "INSERT INTO employees (employee_id, full_name, contact_number, address, position, rfid_card_id) VALUES (?, ?, ?, ?, ?, ?)";
+                    try (PreparedStatement pst = conn.prepareStatement(sqlWithoutDept)) {
+                        pst.setString(1, empId);
+                        pst.setString(2, fullName);
+                        pst.setString(3, contact);
+                        pst.setString(4, address);
+                        pst.setString(5, position);
+                        pst.setString(6, rfidCardId != null && !rfidCardId.trim().isEmpty() ? rfidCardId.trim().toUpperCase() : null);
+                        
+                        int result = pst.executeUpdate();
+                        return result > 0;
+                    }
+                } catch (SQLException e2) {
+                    String errorMsg = "Error registering employee: " + e2.getMessage();
+                    System.err.println(errorMsg);
+                    setLastErrorMessage(errorMsg);
+                    e2.printStackTrace();
+                    return false;
+                }
+            } else {
+                String errorMsg = "Error registering employee: " + e.getMessage();
+                System.err.println(errorMsg);
+                setLastErrorMessage(errorMsg);
+                e.printStackTrace();
+                return false;
+            }
         }
+    }
+    
+    // Method to get last error message for display
+    private static String lastErrorMessage = "";
+    public static String getLastErrorMessage() {
+        return lastErrorMessage;
+    }
+    
+    public static void setLastErrorMessage(String message) {
+        lastErrorMessage = message;
     }
     
     /**
@@ -233,16 +642,17 @@ public class DatabaseOperations {
     }
     
     public static boolean isEmployeeRegistered(String empId, String fullName) {
-        String sql = "SELECT * FROM employees WHERE employee_id = ? AND full_name = ?";
+        // Check by employee_id only (more flexible)
+        String sql = "SELECT * FROM employees WHERE employee_id = ?";
         try (Connection conn = DBConnection.getConnection();
              PreparedStatement pst = conn.prepareStatement(sql)) {
             
             pst.setString(1, empId);
-            pst.setString(2, fullName);
             ResultSet rs = pst.executeQuery();
             return rs.next();
         } catch (SQLException e) {
             System.err.println("Error checking employee: " + e.getMessage());
+            e.printStackTrace();
             return false;
         }
     }
