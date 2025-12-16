@@ -3,12 +3,19 @@ package attendance;
 import javax.swing.*;
 import javax.swing.table.*;
 import java.awt.*;
+import java.awt.event.*;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class DepartmentManagementFrame extends JFrame {
     private JTable departmentTable;
     private DefaultTableModel tableModel;
     private JButton btnAdd, btnEdit, btnDelete, btnViewEmployees, btnRefresh;
+    private JTextField searchField;
+    private JList<String> suggestionList;
+    private JPopupMenu suggestionPopup;
+    private List<DatabaseOperations.Department> allDepartments;
+    private DefaultListModel<String> suggestionListModel;
     
     public DepartmentManagementFrame() {
         setTitle("Department Management");
@@ -32,6 +39,114 @@ public class DepartmentManagementFrame extends JFrame {
         headerPanel.add(titleLabel, BorderLayout.WEST);
         
         mainPanel.add(headerPanel, BorderLayout.NORTH);
+        
+        // Search panel
+        JPanel searchPanel = new JPanel(new BorderLayout());
+        searchPanel.setBorder(BorderFactory.createEmptyBorder(10, 0, 10, 0));
+        searchPanel.setBackground(Color.WHITE);
+        
+        JLabel searchLabel = new JLabel("🔍 Search Department:");
+        searchLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        searchPanel.add(searchLabel, BorderLayout.WEST);
+        
+        searchField = new JTextField(30);
+        searchField.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        searchField.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new Color(200, 200, 200), 1),
+            BorderFactory.createEmptyBorder(8, 10, 8, 10)
+        ));
+        searchPanel.add(searchField, BorderLayout.CENTER);
+        
+        // Autocomplete suggestions
+        suggestionListModel = new DefaultListModel<>();
+        suggestionList = new JList<>(suggestionListModel);
+        suggestionList.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        suggestionList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        suggestionList.setVisibleRowCount(5);
+        suggestionPopup = new JPopupMenu();
+        suggestionPopup.add(new JScrollPane(suggestionList));
+        
+        // Search field listener
+        searchField.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyReleased(KeyEvent e) {
+                String searchText = searchField.getText().trim();
+                
+                if (searchText.length() >= 2 && allDepartments != null && !allDepartments.isEmpty()) {
+                    // Filter departments
+                    List<String> matches = allDepartments.stream()
+                        .map(dept -> dept.getName())
+                        .filter(name -> name.toLowerCase().contains(searchText.toLowerCase()))
+                        .collect(Collectors.toList());
+                    
+                    if (!matches.isEmpty()) {
+                        suggestionListModel.clear();
+                        for (String match : matches) {
+                            suggestionListModel.addElement(match);
+                        }
+                        
+                        // Show popup below search field
+                        if (!suggestionPopup.isVisible()) {
+                            suggestionPopup.show(searchField, 0, searchField.getHeight());
+                            suggestionPopup.setPopupSize(searchField.getWidth(), Math.min(150, matches.size() * 25));
+                        } else {
+                            // Update popup size if already visible
+                            suggestionPopup.setPopupSize(searchField.getWidth(), Math.min(150, matches.size() * 25));
+                        }
+                    } else {
+                        suggestionPopup.setVisible(false);
+                    }
+                } else {
+                    suggestionPopup.setVisible(false);
+                }
+                
+                // Filter table
+                filterTable(searchText);
+            }
+        });
+        
+        // Double-click on suggestion to select
+        suggestionList.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (e.getClickCount() == 2) {
+                    String selected = suggestionList.getSelectedValue();
+                    if (selected != null) {
+                        searchField.setText(selected);
+                        suggestionPopup.setVisible(false);
+                        filterTable(selected);
+                        // Select the row in table
+                        selectDepartmentInTable(selected);
+                    }
+                }
+            }
+        });
+        
+        // Hide popup when clicking outside or pressing Escape
+        searchField.addFocusListener(new FocusAdapter() {
+            @Override
+            public void focusLost(FocusEvent e) {
+                // Delay to allow double-click to register
+                SwingUtilities.invokeLater(() -> {
+                    Component focusOwner = KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusOwner();
+                    if (focusOwner != suggestionList && focusOwner != searchField) {
+                        suggestionPopup.setVisible(false);
+                    }
+                });
+            }
+        });
+        
+        // Press Escape to close popup
+        searchField.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyPressed(KeyEvent e) {
+                if (e.getKeyCode() == KeyEvent.VK_ESCAPE) {
+                    suggestionPopup.setVisible(false);
+                }
+            }
+        });
+        
+        mainPanel.add(searchPanel, BorderLayout.NORTH);
         
         // Table
         String[] columnNames = {"ID", "Department Name", "Description", "Employees", "Created At"};
@@ -128,9 +243,9 @@ public class DepartmentManagementFrame extends JFrame {
     
     private void refreshTable() {
         tableModel.setRowCount(0);
-        List<DatabaseOperations.Department> departments = DatabaseOperations.getAllDepartments();
+        allDepartments = DatabaseOperations.getAllDepartments();
         
-        for (DatabaseOperations.Department dept : departments) {
+        for (DatabaseOperations.Department dept : allDepartments) {
             String createdAt = dept.getCreatedAt() != null 
                 ? dept.getCreatedAt().toString().substring(0, 19) 
                 : "N/A";
@@ -145,6 +260,52 @@ public class DepartmentManagementFrame extends JFrame {
         }
         
         updateButtonStates();
+    }
+    
+    private void filterTable(String searchText) {
+        if (searchText == null || searchText.trim().isEmpty()) {
+            refreshTable();
+            return;
+        }
+        
+        if (allDepartments == null || allDepartments.isEmpty()) {
+            return;
+        }
+        
+        String lowerSearch = searchText.toLowerCase();
+        tableModel.setRowCount(0);
+        
+        for (DatabaseOperations.Department dept : allDepartments) {
+            String deptName = dept.getName().toLowerCase();
+            String description = dept.getDescription() != null ? dept.getDescription().toLowerCase() : "";
+            
+            if (deptName.contains(lowerSearch) || description.contains(lowerSearch)) {
+                String createdAt = dept.getCreatedAt() != null 
+                    ? dept.getCreatedAt().toString().substring(0, 19) 
+                    : "N/A";
+                
+                tableModel.addRow(new Object[]{
+                    dept.getId(),
+                    dept.getName(),
+                    dept.getDescription() != null ? dept.getDescription() : "",
+                    dept.getEmployeeCount(),
+                    createdAt
+                });
+            }
+        }
+        
+        updateButtonStates();
+    }
+    
+    private void selectDepartmentInTable(String departmentName) {
+        for (int i = 0; i < tableModel.getRowCount(); i++) {
+            String name = (String) tableModel.getValueAt(i, 1);
+            if (name.equals(departmentName)) {
+                departmentTable.setRowSelectionInterval(i, i);
+                departmentTable.scrollRectToVisible(departmentTable.getCellRect(i, 0, true));
+                break;
+            }
+        }
     }
     
     private void updateButtonStates() {

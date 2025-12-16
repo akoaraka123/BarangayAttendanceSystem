@@ -4,6 +4,12 @@ import javax.swing.*;
 import javax.swing.table.*;
 import java.awt.*;
 import java.awt.AlphaComposite;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.awt.event.FocusAdapter;
+import java.awt.event.FocusEvent;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.ArrayList;
@@ -11,6 +17,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class AdminDashboardFrame extends JFrame {
     private JButton btnRegister, btnViewLogs, btnViewEmployees, btnRemove, btnChangePassword;
@@ -546,23 +553,83 @@ public class AdminDashboardFrame extends JFrame {
             return;
         }
 
+        // Create custom dialog with search functionality
+        JDialog dialog = new JDialog(this, "Registered Employees", true);
+        dialog.setSize(1200, 700);
+        dialog.setLocationRelativeTo(this);
+        
+        JPanel mainPanel = new JPanel(new BorderLayout());
+        mainPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        mainPanel.setBackground(Color.WHITE);
+        
+        // Header
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.setBackground(ThemeManager.PRIMARY_COLOR);
+        headerPanel.setBorder(BorderFactory.createEmptyBorder(15, 20, 15, 20));
+        
+        JLabel titleLabel = new JLabel("👥 Registered Employees");
+        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 24));
+        titleLabel.setForeground(Color.WHITE);
+        headerPanel.add(titleLabel, BorderLayout.WEST);
+        
+        mainPanel.add(headerPanel, BorderLayout.NORTH);
+        
+        // Search panel
+        JPanel searchPanel = new JPanel(new BorderLayout());
+        searchPanel.setBorder(BorderFactory.createEmptyBorder(10, 0, 10, 0));
+        searchPanel.setBackground(Color.WHITE);
+        
+        JLabel searchLabel = new JLabel("🔍 Search Employee Name:");
+        searchLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        searchPanel.add(searchLabel, BorderLayout.WEST);
+        
+        JTextField searchField = new JTextField(30);
+        searchField.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        searchField.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new Color(200, 200, 200), 1),
+            BorderFactory.createEmptyBorder(8, 10, 8, 10)
+        ));
+        searchPanel.add(searchField, BorderLayout.CENTER);
+        
+        // Autocomplete suggestions
+        DefaultListModel<String> suggestionListModel = new DefaultListModel<>();
+        JList<String> suggestionList = new JList<>(suggestionListModel);
+        suggestionList.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        suggestionList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        suggestionList.setVisibleRowCount(5);
+        JPopupMenu suggestionPopup = new JPopupMenu();
+        suggestionPopup.add(new JScrollPane(suggestionList));
+        
+        // Table
         String[] columnNames = {"#", "Employee ID", "Full Name", "Contact", "Address", "Position", "RFID Card ID"};
-        DefaultTableModel model = new DefaultTableModel(columnNames, 0);
-
-        for (int i = 0; i < employees.size(); i++) {
-            Employee emp = employees.get(i);
+        DefaultTableModel model = new DefaultTableModel(columnNames, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+        
+        // Store all employees for filtering
+        final List<Employee> allEmployees = new ArrayList<>(employees);
+        
+        // Populate table
+        for (int i = 0; i < allEmployees.size(); i++) {
+            Employee emp = allEmployees.get(i);
             Object[] row = {i + 1, emp.getEmployeeId(), emp.getFullName(), 
                           emp.getContactNumber(), emp.getAddress(), emp.getPosition(),
                           emp.getRfidCardId() != null ? emp.getRfidCardId() : "Not Set"};
             model.addRow(row);
         }
-
+        
         JTable table = new JTable(model);
         table.setEnabled(false);
         table.setFillsViewportHeight(true);
-        table.setRowHeight(30); // Increase row height for better visibility
-        table.setFont(new Font("Segoe UI", Font.PLAIN, 14)); // Larger font
-
+        table.setRowHeight(30);
+        table.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        table.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 14));
+        table.getTableHeader().setBackground(ThemeManager.PRIMARY_COLOR);
+        table.getTableHeader().setForeground(Color.WHITE);
+        
         TableColumnModel columnModel = table.getColumnModel();
         columnModel.getColumn(0).setPreferredWidth(50);  // #
         columnModel.getColumn(1).setPreferredWidth(120); // Employee ID
@@ -571,20 +638,126 @@ public class AdminDashboardFrame extends JFrame {
         columnModel.getColumn(4).setPreferredWidth(300); // Address
         columnModel.getColumn(5).setPreferredWidth(150); // Position
         columnModel.getColumn(6).setPreferredWidth(200); // RFID Card ID
-
+        
+        // Search field listener
+        searchField.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyReleased(KeyEvent e) {
+                String searchText = searchField.getText().trim();
+                
+                if (searchText.length() >= 2) {
+                    // Filter employee names for suggestions
+                    List<String> matches = allEmployees.stream()
+                        .map(emp -> emp.getFullName())
+                        .filter(name -> name.toLowerCase().contains(searchText.toLowerCase()))
+                        .distinct()
+                        .collect(Collectors.toList());
+                    
+                    if (!matches.isEmpty()) {
+                        suggestionListModel.clear();
+                        for (String match : matches) {
+                            suggestionListModel.addElement(match);
+                        }
+                        
+                        // Show popup below search field
+                        if (!suggestionPopup.isVisible()) {
+                            suggestionPopup.show(searchField, 0, searchField.getHeight());
+                            suggestionPopup.setPopupSize(searchField.getWidth(), Math.min(150, matches.size() * 25));
+                        } else {
+                            suggestionPopup.setPopupSize(searchField.getWidth(), Math.min(150, matches.size() * 25));
+                        }
+                    } else {
+                        suggestionPopup.setVisible(false);
+                    }
+                } else {
+                    suggestionPopup.setVisible(false);
+                }
+                
+                // Filter table
+                filterEmployeeTable(model, allEmployees, searchText);
+            }
+        });
+        
+        // Double-click on suggestion to select
+        suggestionList.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (e.getClickCount() == 2) {
+                    String selected = suggestionList.getSelectedValue();
+                    if (selected != null) {
+                        searchField.setText(selected);
+                        suggestionPopup.setVisible(false);
+                        filterEmployeeTable(model, allEmployees, selected);
+                        // Select the row in table
+                        selectEmployeeInTable(table, model, selected);
+                    }
+                }
+            }
+        });
+        
+        // Hide popup when clicking outside
+        searchField.addFocusListener(new FocusAdapter() {
+            @Override
+            public void focusLost(FocusEvent e) {
+                SwingUtilities.invokeLater(() -> {
+                    Component focusOwner = KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusOwner();
+                    if (focusOwner != suggestionList && focusOwner != searchField) {
+                        suggestionPopup.setVisible(false);
+                    }
+                });
+            }
+        });
+        
+        // Press Escape to close popup
+        searchField.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyPressed(KeyEvent e) {
+                if (e.getKeyCode() == KeyEvent.VK_ESCAPE) {
+                    suggestionPopup.setVisible(false);
+                }
+            }
+        });
+        
         JScrollPane scrollPane = new JScrollPane(table);
-        // Make it full view - use most of the screen
-        Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
-        int dialogWidth = (int)(screenSize.width * 0.9); // 90% of screen width
-        int dialogHeight = (int)(screenSize.height * 0.8); // 80% of screen height
-        scrollPane.setPreferredSize(new Dimension(dialogWidth - 100, dialogHeight - 150));
+        scrollPane.setBorder(BorderFactory.createTitledBorder("Employees"));
+        
+        mainPanel.add(searchPanel, BorderLayout.NORTH);
+        mainPanel.add(scrollPane, BorderLayout.CENTER);
+        
+        // Button panel
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 10));
+        buttonPanel.setBackground(Color.WHITE);
+        
+        JButton btnOK = new JButton("OK");
+        JButton btnEdit = new JButton("EDIT");
+        ThemeManager.styleButton(btnOK);
+        ThemeManager.styleButton(btnEdit);
+        btnOK.setPreferredSize(new Dimension(120, 40));
+        btnEdit.setPreferredSize(new Dimension(120, 40));
+        
+        buttonPanel.add(btnOK);
+        buttonPanel.add(btnEdit);
+        mainPanel.add(buttonPanel, BorderLayout.SOUTH);
+        
+        dialog.add(mainPanel);
+        
+        final int[] choice = {-1};
+        
+        btnOK.addActionListener(e -> {
+            choice[0] = 0;
+            dialog.dispose();
+        });
+        
+        btnEdit.addActionListener(e -> {
+            choice[0] = 1;
+            dialog.dispose();
+        });
+        
+        dialog.setVisible(true);
+        
+        int finalChoice = choice[0];
 
-        String[] options = {"OK", "EDIT"};
-        int choice = JOptionPane.showOptionDialog(this, scrollPane, "Registered Employees",
-                JOptionPane.DEFAULT_OPTION, JOptionPane.INFORMATION_MESSAGE,
-                null, options, options[0]);
-
-        if (choice == 1) {
+        if (finalChoice == 1) {
             // Use search dialog with suggestions
             Employee emp = searchEmployeeWithSuggestions("Edit Employee");
             if (emp == null) {
@@ -1291,6 +1464,51 @@ public class AdminDashboardFrame extends JFrame {
         }
         
         return filtered;
+    }
+    
+    // Helper method to filter employee table
+    private void filterEmployeeTable(DefaultTableModel model, List<Employee> allEmployees, String searchText) {
+        model.setRowCount(0);
+        
+        if (searchText == null || searchText.trim().isEmpty()) {
+            // Show all employees
+            for (int i = 0; i < allEmployees.size(); i++) {
+                Employee emp = allEmployees.get(i);
+                Object[] row = {i + 1, emp.getEmployeeId(), emp.getFullName(), 
+                              emp.getContactNumber(), emp.getAddress(), emp.getPosition(),
+                              emp.getRfidCardId() != null ? emp.getRfidCardId() : "Not Set"};
+                model.addRow(row);
+            }
+            return;
+        }
+        
+        String lowerSearch = searchText.toLowerCase();
+        int rowNum = 1;
+        
+        for (Employee emp : allEmployees) {
+            String fullName = emp.getFullName() != null ? emp.getFullName().toLowerCase() : "";
+            String empId = emp.getEmployeeId() != null ? emp.getEmployeeId().toLowerCase() : "";
+            String position = emp.getPosition() != null ? emp.getPosition().toLowerCase() : "";
+            
+            if (fullName.contains(lowerSearch) || empId.contains(lowerSearch) || position.contains(lowerSearch)) {
+                Object[] row = {rowNum++, emp.getEmployeeId(), emp.getFullName(), 
+                              emp.getContactNumber(), emp.getAddress(), emp.getPosition(),
+                              emp.getRfidCardId() != null ? emp.getRfidCardId() : "Not Set"};
+                model.addRow(row);
+            }
+        }
+    }
+    
+    // Helper method to select employee in table
+    private void selectEmployeeInTable(JTable table, DefaultTableModel model, String employeeName) {
+        for (int i = 0; i < model.getRowCount(); i++) {
+            String name = (String) model.getValueAt(i, 2); // Full Name is column 2
+            if (name != null && name.equals(employeeName)) {
+                table.setRowSelectionInterval(i, i);
+                table.scrollRectToVisible(table.getCellRect(i, 0, true));
+                break;
+            }
+        }
     }
     
     /**

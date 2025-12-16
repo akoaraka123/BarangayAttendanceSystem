@@ -4,13 +4,17 @@ import javax.swing.*;
 import javax.swing.table.*;
 import javax.swing.text.*;
 import java.awt.*;
+import java.awt.event.*;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.stream.Collectors;
 
 public class UserManagementFrame extends JFrame {
     private JTable userTable;
     private DefaultTableModel tableModel;
     private JButton btnAdd, btnEdit, btnDelete, btnRecover, btnRefresh;
     private JCheckBox chkShowDeleted;
+    private List<DatabaseOperations.User> allUsers = new ArrayList<>();
     
     public UserManagementFrame() {
         setTitle("User Management");
@@ -40,6 +44,33 @@ public class UserManagementFrame extends JFrame {
         headerPanel.add(chkShowDeleted, BorderLayout.EAST);
         
         mainPanel.add(headerPanel, BorderLayout.NORTH);
+        
+        // Search bar panel
+        JPanel searchPanel = new JPanel(new BorderLayout());
+        searchPanel.setBorder(BorderFactory.createEmptyBorder(10, 0, 10, 0));
+        searchPanel.setBackground(Color.WHITE);
+        
+        JLabel searchLabel = new JLabel("🔍 Search:");
+        searchLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        searchPanel.add(searchLabel, BorderLayout.WEST);
+        
+        JTextField searchField = new JTextField(30);
+        searchField.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        searchField.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(Color.GRAY, 1),
+            BorderFactory.createEmptyBorder(5, 10, 5, 10)
+        ));
+        
+        // Autocomplete suggestions
+        DefaultListModel<String> suggestionModel = new DefaultListModel<>();
+        JList<String> suggestionList = new JList<>(suggestionModel);
+        suggestionList.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        suggestionList.setVisibleRowCount(5);
+        JPopupMenu suggestionPopup = new JPopupMenu();
+        suggestionPopup.add(new JScrollPane(suggestionList));
+        
+        searchPanel.add(searchField, BorderLayout.CENTER);
+        mainPanel.add(searchPanel, BorderLayout.CENTER);
         
         // Table
         String[] columnNames = {"ID", "Email", "Role", "Created At", "Status"};
@@ -93,7 +124,12 @@ public class UserManagementFrame extends JFrame {
         
         JScrollPane scrollPane = new JScrollPane(userTable);
         scrollPane.setBorder(BorderFactory.createTitledBorder("Users"));
-        mainPanel.add(scrollPane, BorderLayout.CENTER);
+        
+        // Create a panel to hold search and table
+        JPanel contentPanel = new JPanel(new BorderLayout());
+        contentPanel.add(searchPanel, BorderLayout.NORTH);
+        contentPanel.add(scrollPane, BorderLayout.CENTER);
+        mainPanel.add(contentPanel, BorderLayout.CENTER);
         
         // Button panel
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 10));
@@ -134,6 +170,75 @@ public class UserManagementFrame extends JFrame {
         
         add(mainPanel);
         
+        // Search functionality
+        searchField.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyReleased(KeyEvent e) {
+                String searchText = searchField.getText();
+                
+                if (searchText.length() >= 2) {
+                    // Show suggestions
+                    List<String> matches = allUsers.stream()
+                        .map(user -> user.getEmail())
+                        .filter(email -> email.toLowerCase().contains(searchText.toLowerCase()))
+                        .distinct()
+                        .collect(Collectors.toList());
+                    
+                    suggestionModel.clear();
+                    for (String match : matches) {
+                        suggestionModel.addElement(match);
+                    }
+                    
+                    if (!matches.isEmpty() && !suggestionPopup.isVisible()) {
+                        suggestionPopup.show(searchField, 0, searchField.getHeight());
+                        suggestionPopup.setPreferredSize(new Dimension(searchField.getWidth(), Math.min(150, matches.size() * 25)));
+                    } else if (matches.isEmpty()) {
+                        suggestionPopup.setVisible(false);
+                    }
+                } else {
+                    suggestionPopup.setVisible(false);
+                }
+                
+                // Filter table
+                filterUserTable(searchText);
+            }
+            
+            @Override
+            public void keyPressed(KeyEvent e) {
+                if (e.getKeyCode() == KeyEvent.VK_ESCAPE) {
+                    suggestionPopup.setVisible(false);
+                }
+            }
+        });
+        
+        // Double-click on suggestion to select
+        suggestionList.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (e.getClickCount() == 2) {
+                    String selectedEmail = suggestionList.getSelectedValue();
+                    if (selectedEmail != null) {
+                        searchField.setText(selectedEmail);
+                        suggestionPopup.setVisible(false);
+                        selectUserInTable(selectedEmail);
+                    }
+                }
+            }
+        });
+        
+        // Hide suggestions when focus is lost
+        searchField.addFocusListener(new FocusAdapter() {
+            @Override
+            public void focusLost(FocusEvent e) {
+                // Delay to allow double-click to register
+                SwingUtilities.invokeLater(() -> {
+                    if (!suggestionPopup.isFocusOwner() && !suggestionList.isFocusOwner()) {
+                        suggestionPopup.setVisible(false);
+                    }
+                });
+            }
+        });
+        
         // Load initial data
         refreshTable();
     }
@@ -141,9 +246,9 @@ public class UserManagementFrame extends JFrame {
     private void refreshTable() {
         tableModel.setRowCount(0);
         boolean includeDeleted = chkShowDeleted.isSelected();
-        List<DatabaseOperations.User> users = DatabaseOperations.getAllUsers(includeDeleted);
+        allUsers = DatabaseOperations.getAllUsers(includeDeleted);
         
-        for (DatabaseOperations.User user : users) {
+        for (DatabaseOperations.User user : allUsers) {
             String status = user.isDeleted() ? "Deleted" : "Active";
             String createdAt = user.getCreatedAt() != null 
                 ? user.getCreatedAt().toString().substring(0, 19) 
@@ -160,6 +265,64 @@ public class UserManagementFrame extends JFrame {
         
         // Update button states
         updateButtonStates();
+    }
+    
+    // Helper method to filter user table
+    private void filterUserTable(String searchText) {
+        tableModel.setRowCount(0);
+        
+        if (searchText == null || searchText.trim().isEmpty()) {
+            // Show all users
+            for (DatabaseOperations.User user : allUsers) {
+                String status = user.isDeleted() ? "Deleted" : "Active";
+                String createdAt = user.getCreatedAt() != null 
+                    ? user.getCreatedAt().toString().substring(0, 19) 
+                    : "N/A";
+                
+                tableModel.addRow(new Object[]{
+                    user.getId(),
+                    user.getEmail(),
+                    user.getRole(),
+                    createdAt,
+                    status
+                });
+            }
+            return;
+        }
+        
+        String lowerSearch = searchText.toLowerCase();
+        
+        for (DatabaseOperations.User user : allUsers) {
+            String email = user.getEmail() != null ? user.getEmail().toLowerCase() : "";
+            String role = user.getRole() != null ? user.getRole().toLowerCase() : "";
+            
+            if (email.contains(lowerSearch) || role.contains(lowerSearch)) {
+                String status = user.isDeleted() ? "Deleted" : "Active";
+                String createdAt = user.getCreatedAt() != null 
+                    ? user.getCreatedAt().toString().substring(0, 19) 
+                    : "N/A";
+                
+                tableModel.addRow(new Object[]{
+                    user.getId(),
+                    user.getEmail(),
+                    user.getRole(),
+                    createdAt,
+                    status
+                });
+            }
+        }
+    }
+    
+    // Helper method to select user in table
+    private void selectUserInTable(String email) {
+        for (int i = 0; i < tableModel.getRowCount(); i++) {
+            String userEmail = (String) tableModel.getValueAt(i, 1); // Email is column 1
+            if (userEmail != null && userEmail.equals(email)) {
+                userTable.setRowSelectionInterval(i, i);
+                userTable.scrollRectToVisible(userTable.getCellRect(i, 0, true));
+                break;
+            }
+        }
     }
     
     private void updateButtonStates() {
@@ -269,12 +432,26 @@ public class UserManagementFrame extends JFrame {
                 return;
             }
             
+            // Validate password before attempting to create
+            if (!PasswordUtils.isPasswordStrong(password)) {
+                String errorMsg = PasswordUtils.getPasswordStrengthMessage(password);
+                if (errorMsg.contains("✓")) {
+                    errorMsg = "Password does not meet requirements.";
+                }
+                JOptionPane.showMessageDialog(dialog, errorMsg, "Password Validation Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            
             if (DatabaseOperations.createUserForManagement(email, password, role)) {
                 JOptionPane.showMessageDialog(dialog, "User created successfully!", "Success", JOptionPane.INFORMATION_MESSAGE);
                 dialog.dispose();
                 refreshTable();
             } else {
-                JOptionPane.showMessageDialog(dialog, "Failed to create user. Email may already exist.", "Error", JOptionPane.ERROR_MESSAGE);
+                String errorMsg = DatabaseOperations.getLastErrorMessage();
+                if (errorMsg == null || errorMsg.trim().isEmpty()) {
+                    errorMsg = "Failed to create user. Email may already exist or password is too weak.";
+                }
+                JOptionPane.showMessageDialog(dialog, errorMsg, "Error", JOptionPane.ERROR_MESSAGE);
             }
         });
         

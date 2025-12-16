@@ -42,16 +42,41 @@ public class DatabaseOperations {
                 String storedPassword = rs.getString("password");
                 String role = rs.getString("role");
                 System.out.println("DEBUG: User found in database");
-                System.out.println("DEBUG: Stored password: " + storedPassword);
                 System.out.println("DEBUG: User role: " + role);
                 
-                // Temporary: Direct comparison for plain text
-                boolean passwordMatch = password.equals(storedPassword);
+                // Check if password is hashed (new format) or plain text (old format)
+                // Hashed passwords are typically 64 characters (SHA-256 hex)
+                boolean isHashed = storedPassword != null && storedPassword.length() == 64 && storedPassword.matches("[0-9a-f]{64}");
+                
+                boolean passwordMatch;
+                if (isHashed) {
+                    // New format: verify using PasswordUtils
+                    passwordMatch = PasswordUtils.verifyPassword(password, storedPassword);
+                } else {
+                    // Old format: direct comparison (backward compatibility)
+                    passwordMatch = password.equals(storedPassword);
+                    
+                    // If match and password is plain text, update to hashed format for security
+                    if (passwordMatch) {
+                        try (Connection conn2 = DBConnection.getConnection()) {
+                            String updateSql = "UPDATE users SET password = ? WHERE email = ?";
+                            try (PreparedStatement pstUpdate = conn2.prepareStatement(updateSql)) {
+                                pstUpdate.setString(1, PasswordUtils.hashPassword(password));
+                                pstUpdate.setString(2, dbEmail);
+                                pstUpdate.executeUpdate();
+                                System.out.println("DEBUG: Password migrated to hashed format");
+                            }
+                        } catch (SQLException e) {
+                            System.err.println("Warning: Could not migrate password to hashed format: " + e.getMessage());
+                        }
+                    }
+                }
+                
                 System.out.println("DEBUG: Password match: " + passwordMatch);
                 
                 return passwordMatch;
             } else {
-                System.out.println("DEBUG: No user found with email: " + email);
+                System.out.println("DEBUG: No user found with email: " + dbEmail);
             }
         } catch (SQLException e) {
             System.err.println("Authentication error: " + e.getMessage());
@@ -136,7 +161,7 @@ public class DatabaseOperations {
             dbEmail = "employee@barangay.com";
         }
         
-        String sql = "SELECT role FROM users WHERE email = ?";
+        String sql = "SELECT role FROM users WHERE email = ? AND deleted_at IS NULL";
         try (Connection conn = DBConnection.getConnection();
              PreparedStatement pst = conn.prepareStatement(sql)) {
             
@@ -312,6 +337,16 @@ public class DatabaseOperations {
     
     // Create new user (for user management)
     public static boolean createUserForManagement(String email, String password, String role) {
+        // Clear previous error message
+        setLastErrorMessage("");
+        
+        // Validate password strength first
+        if (!PasswordUtils.isPasswordStrong(password)) {
+            setLastErrorMessage("Password does not meet requirements:\n" + 
+                              PasswordUtils.getPasswordStrengthMessage(password).replace("Password is strong ✓", ""));
+            return false;
+        }
+        
         // Check if user already exists (including deleted)
         String sqlCheck = "SELECT id, deleted_at FROM users WHERE email = ?";
         try (Connection conn = DBConnection.getConnection();
@@ -330,19 +365,57 @@ public class DatabaseOperations {
                             pstUpdate.setString(1, PasswordUtils.hashPassword(password));
                             pstUpdate.setString(2, role);
                             pstUpdate.setInt(3, userId);
-                            return pstUpdate.executeUpdate() > 0;
+                            boolean success = pstUpdate.executeUpdate() > 0;
+                            if (success) {
+                                setLastErrorMessage("");
+                            } else {
+                                setLastErrorMessage("Failed to update recovered user.");
+                            }
+                            return success;
                         }
+                    } else {
+                        setLastErrorMessage("Failed to recover deleted user.");
+                        return false;
                     }
                 }
+                setLastErrorMessage("Email already exists. Please use a different email address.");
                 return false; // User exists and is not deleted
             }
         } catch (SQLException e) {
             System.err.println("Error checking user existence: " + e.getMessage());
+            setLastErrorMessage("Database error: " + e.getMessage());
             return false;
         }
         
         // Create new user
-        return createUser(email, password, role);
+        try {
+            if (userExists(email)) {
+                setLastErrorMessage("Email already exists. Please use a different email address.");
+                return false;
+            }
+            
+            String sql = "INSERT INTO users (email, password, role) VALUES (?, ?, ?)";
+            try (Connection conn = DBConnection.getConnection();
+                 PreparedStatement pst = conn.prepareStatement(sql)) {
+                
+                pst.setString(1, email);
+                pst.setString(2, PasswordUtils.hashPassword(password));
+                pst.setString(3, role);
+                
+                int result = pst.executeUpdate();
+                if (result > 0) {
+                    setLastErrorMessage("");
+                    return true;
+                } else {
+                    setLastErrorMessage("Failed to create user. Please try again.");
+                    return false;
+                }
+            }
+        } catch (SQLException e) {
+            System.err.println("Error creating user: " + e.getMessage());
+            setLastErrorMessage("Database error: " + e.getMessage());
+            return false;
+        }
     }
     
     // ===== DEPARTMENT OPERATIONS =====

@@ -10,9 +10,9 @@ public class PasswordUtils {
     private static final String SALT = "BarangayAttendance2025@#$";
     private static final int HASH_ITERATIONS = 1000;
     
-    // Password validation regex
+    // Password validation regex - simple: alphanumeric, minimum 6 characters
     private static final Pattern PASSWORD_PATTERN = Pattern.compile(
-        "^(?=.*[0-9])(?=.*[a-z])(?=.*[A-Z])(?=.*[@#$%^&+=])(?=\\S+$).{8,}$"
+        "^[A-Za-z0-9ñÑ]{6,}$"
     );
     
     /**
@@ -67,10 +67,10 @@ public class PasswordUtils {
     }
     
     /**
-     * Validate password strength
+     * Validate password strength - simple validation: at least 6 alphanumeric characters
      */
     public static boolean isPasswordStrong(String password) {
-        if (password == null || password.length() < 8) {
+        if (password == null || password.length() < 6) {
             return false;
         }
         
@@ -85,19 +85,15 @@ public class PasswordUtils {
             return "Password is required";
         }
         
-        if (password.length() < 8) {
-            return "Password must be at least 8 characters long";
+        if (password.length() < 6) {
+            return "Password must be at least 6 characters long";
         }
         
         if (!isPasswordStrong(password)) {
-            return "Password must contain:\n" +
-                   "• At least 1 digit (0-9)\n" +
-                   "• At least 1 lowercase letter\n" +
-                   "• At least 1 uppercase letter\n" +
-                   "• At least 1 special character (@#$%^&+=)";
+            return "Password must contain only letters and numbers (A-Z, a-z, 0-9, ñ, Ñ)";
         }
         
-        return "Password is strong ✓";
+        return "Password is valid ✓";
     }
     
     /**
